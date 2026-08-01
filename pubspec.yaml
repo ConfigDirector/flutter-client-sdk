@@ -1,7 +1,7 @@
-name: flutter_sdk
-description: "A new Flutter package project."
+name: configdirector_flutter_client_sdk
+description: "Flutter client SDK for ConfigDirector. ConfigDirector is a remote configuration and feature flag service."
 version: 0.0.1
-homepage:
+homepage: https://www.configdirector.com
 
 environment:
   sdk: ^3.12.2

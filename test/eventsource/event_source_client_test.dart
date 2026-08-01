@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_sdk/src/eventsource/eventsource.dart';
+import 'package:configdirector_flutter_client_sdk/src/eventsource/eventsource.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
