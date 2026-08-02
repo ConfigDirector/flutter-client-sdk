@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# Runs tool/validate.sh before a push, so CI is not the first thing that tells
+# you the branch is broken.
+#
+# This directory is not git's default hook path, so it has to be pointed at
+# once per clone:
+#
+#     git config core.hooksPath tool/hooks
+#
+# Keeping the hook in the repository rather than in .git/hooks is what makes it
+# reviewable and shared; the cost is that one-time command. Bypass a single
+# push with `git push --no-verify`.
+
+set -uo pipefail
+
+# git feeds one "<local-ref> <local-sha> <remote-ref> <remote-sha>" line per ref
+# on stdin. An all-zero local sha means that ref is being deleted, and a push
+# that only deletes refs has no new code to validate.
+refs=$(cat)
+if [[ -n "$refs" ]] &&
+  ! printf '%s\n' "$refs" | awk '$2 !~ /^0+$/ { found = 1 } END { exit !found }'; then
+  echo "pre-push: deletion-only push, nothing to validate."
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel) || exit 1
+
+printf '\033[1mpre-push: running tool/validate.sh (bypass with --no-verify)\033[0m\n'
+
+# stdin is already consumed above, and the checks below should not inherit what
+# is left of it.
+"$repo_root/tool/validate.sh" </dev/null
+status=$?
+
+if [[ $status -ne 0 ]]; then
+  printf '\n\033[31mpre-push: validation failed, push aborted.\033[0m\n'
+  # shellcheck disable=SC2016  # backticks are prose here, not substitution
+  printf 'Fix formatting with `./tool/validate.sh --fix`, or bypass with `git push --no-verify`.\n'
+fi
+
+exit $status
