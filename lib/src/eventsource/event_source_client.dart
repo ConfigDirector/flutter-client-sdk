@@ -48,13 +48,17 @@ class EventSourceClient extends ChangeNotifier {
     Map<String, String>? headers,
     this.body,
     this.followRedirects = true,
-    this._lastEventId,
+    String? lastEventId,
     http.Client? client,
-    this._shouldReconnect = _defaultShouldReconnect,
-    this._calculateReconnectDelay = _defaultCalculateReconnectDelay,
+    ShouldReconnect shouldReconnect = _defaultShouldReconnect,
+    CalculateReconnectDelay calculateReconnectDelay =
+        _defaultCalculateReconnectDelay,
   }) : _headers = {'Accept': 'text/event-stream', ...?headers},
+       _lastEventId = lastEventId,
        _client = client ?? http.Client(),
-       _ownsClient = client == null;
+       _ownsClient = client == null,
+       _shouldReconnect = shouldReconnect,
+       _calculateReconnectDelay = calculateReconnectDelay;
 
   static bool _defaultShouldReconnect(ReconnectionState state) => true;
 

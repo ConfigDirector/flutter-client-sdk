@@ -22,7 +22,7 @@ String configSetBody({
   'environmentId': 'env-id',
   'projectId': 'project-id',
   'kind': kind,
-  'timestamp': ?timestamp,
+  if (timestamp != null) 'timestamp': timestamp,
   'configs': configs,
 });
 

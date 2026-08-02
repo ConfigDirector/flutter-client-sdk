@@ -42,7 +42,8 @@ final class TransportOptions {
     'metaContext': metaContext.toJson(),
     'clientSdkKey': clientSdkKey,
     'instanceId': instanceId,
-    'lastUpdateTimestamp': ?lastUpdateTimestamp,
+    if (lastUpdateTimestamp != null)
+      'lastUpdateTimestamp': lastUpdateTimestamp,
   };
 }
 

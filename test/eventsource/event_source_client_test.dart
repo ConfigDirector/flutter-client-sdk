@@ -668,8 +668,9 @@ void main() {
             client: client,
             calculateReconnectDelay: (state) {
               capturedServerReconnectionTime = state.serverReconnectionTime;
-              if (!calculateCompleter.isCompleted)
+              if (!calculateCompleter.isCompleted) {
                 calculateCompleter.complete();
+              }
               return const Duration(seconds: 10);
             },
             shouldReconnect: (_) => true,
@@ -761,8 +762,9 @@ void main() {
               url: Uri.parse('http://localhost/sse'),
               client: client,
               calculateReconnectDelay: (_) {
-                if (!calculateCompleter.isCompleted)
+                if (!calculateCompleter.isCompleted) {
                   calculateCompleter.complete();
+                }
                 return entry.value;
               },
               shouldReconnect: (_) => true,

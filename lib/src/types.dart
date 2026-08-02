@@ -182,10 +182,10 @@ final class ConfigDirectorContext {
   final bool? anonymous;
 
   Map<String, Object?> toJson() => {
-    'id': ?id,
-    'name': ?name,
-    'traits': ?traits,
-    'anonymous': ?anonymous,
+    if (id != null) 'id': id,
+    if (name != null) 'name': name,
+    if (traits != null) 'traits': traits,
+    if (anonymous != null) 'anonymous': anonymous,
   };
 
   @override
@@ -215,8 +215,8 @@ final class ConfigDirectorMetaContext {
   final String? appVersion;
 
   Map<String, Object?> toJson() => {
-    'appName': ?appName,
-    'appVersion': ?appVersion,
+    if (appName != null) 'appName': appName,
+    if (appVersion != null) 'appVersion': appVersion,
   };
 }
 
@@ -241,7 +241,7 @@ final class SdkMetaContext {
     ...?metadata?.toJson(),
     'sdkName': sdkName,
     'sdkVersion': sdkVersion,
-    'userAgent': ?userAgent,
+    if (userAgent != null) 'userAgent': userAgent,
   };
 }
 
