@@ -53,6 +53,11 @@ check() {
 
 check "pub get" flutter pub get
 
+# The sample app under example/ is a package of its own, and `flutter analyze`
+# descends into it, so its dependencies have to be resolved as well or every
+# import in it reads as unresolved.
+check "pub get (example)" flutter pub get --directory example
+
 # The formatter picks its style from the package's language version, and this
 # package targets Dart 3.4 to support Flutter 3.22. Left alone, `dart format`
 # would rewrite the whole repository into the pre-3.7 short style. Pinning the
@@ -73,6 +78,11 @@ fi
 check "analyze" flutter analyze --fatal-infos
 
 check "test (vm)" flutter test
+
+# The `flutter` tool takes the package to test from the working directory, so
+# the sample app's tests have to be run from inside it.
+example_tests() { (cd example && flutter test); }
+check "test (example)" example_tests
 
 # `flutter test --platform chrome` needs a browser the Flutter tool can find.
 if [[ $run_web -eq 0 ]]; then

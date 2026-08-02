@@ -32,8 +32,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # `flutter analyze` descends into the sample app under example/, which is
+      # a package of its own, so its dependencies have to be resolved too.
+      - name: Install example dependencies
+        run: flutter pub get --directory example
+
       - name: Analyze
         run: flutter analyze --fatal-infos
+
+      - name: Test example app
+        run: flutter test
+        working-directory: example
 
   test_by_platform:
     # The SDK compiles for both the Dart VM and the web, and the two disagree
