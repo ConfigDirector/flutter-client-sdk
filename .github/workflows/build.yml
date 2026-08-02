@@ -32,11 +32,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # `flutter analyze` descends into the sample app under example/, which is
-      # a package of its own, so its dependencies have to be resolved too.
-      - name: Install example dependencies
-        run: flutter pub get --directory example
-
       - name: Analyze
         run: flutter analyze --fatal-infos
 
@@ -71,7 +66,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --no-example
 
       - name: Run tests
         run: flutter test --platform ${{ matrix.platform }}
@@ -102,7 +97,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get --no-example
 
       - name: Run tests
         run: flutter test
