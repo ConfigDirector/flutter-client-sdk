@@ -204,7 +204,7 @@ class _ConfigCard extends StatelessWidget {
                   ],
                 ],
               ),
-              ?below,
+              if (below != null) below!,
             ],
           ),
         ),
