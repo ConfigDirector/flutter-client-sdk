@@ -212,8 +212,9 @@ class EventSourceClient extends ChangeNotifier {
             if (!completer.isCompleted) completer.complete();
           },
           onError: (Object error, StackTrace stackTrace) {
-            if (!completer.isCompleted)
+            if (!completer.isCompleted) {
               completer.completeError(error, stackTrace);
+            }
           },
           cancelOnError: true,
         );
