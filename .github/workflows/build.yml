@@ -66,7 +66,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get --no-example
+        run: flutter pub get
 
       - name: Run tests
         run: flutter test --platform ${{ matrix.platform }}
@@ -97,7 +97,7 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get --no-example
+        run: flutter pub get
 
       - name: Run tests
         run: flutter test

@@ -20,7 +20,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ">=4.0.0 <7.0.0"
 
 # Resolves `configdirector_flutter_client_sdk` from this repository rather than
 # from pub.dev. Delete this section once the package is published.
