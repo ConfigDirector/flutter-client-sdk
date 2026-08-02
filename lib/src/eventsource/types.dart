@@ -1,8 +1,4 @@
-enum ReadyState {
-  connecting,
-  open,
-  closed,
-}
+enum ReadyState { connecting, open, closed }
 
 typedef ReconnectionState = ({
   int attempt,
@@ -21,7 +17,10 @@ final class EventSourceMessage {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is EventSourceMessage && other.id == id && other.type == type && other.data == data);
+      (other is EventSourceMessage &&
+          other.id == id &&
+          other.type == type &&
+          other.data == data);
 
   @override
   int get hashCode => Object.hash(id, type, data);

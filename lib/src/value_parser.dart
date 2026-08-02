@@ -72,9 +72,11 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
     if (!_numericSourceTypes.contains(configState.type)) {
       return _useDefault(defaultValue, EvaluationReason.typeMismatch);
     }
-    final parsed = defaultValue is int
-        ? _parseInt(rawValue)
-        : _parseDouble(rawValue);
+    // Dispatch on `T` rather than on the runtime type of [defaultValue]: on the
+    // web every number is a JavaScript double, so `0.0 is int` is true there
+    // and a `double` default would otherwise be truncated. A `num` default
+    // falls through to the double branch, which any numeric value satisfies.
+    final parsed = T == int ? _parseInt(rawValue) : _parseDouble(rawValue);
     return parsed == null
         ? _useDefault(defaultValue, EvaluationReason.invalidNumber)
         : _matched(parsed, configState.valueId, defaultValue);

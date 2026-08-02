@@ -54,7 +54,9 @@ class EventSourceParser {
       if (unit == 0x0D || unit == 0x0A) {
         lines.add(text.substring(lineStart, i));
         // Consume CRLF as a single terminator rather than two separate lines.
-        if (unit == 0x0D && i + 1 < text.length && text.codeUnitAt(i + 1) == 0x0A) {
+        if (unit == 0x0D &&
+            i + 1 < text.length &&
+            text.codeUnitAt(i + 1) == 0x0A) {
           i++;
         }
         i++;
@@ -83,10 +85,14 @@ class EventSourceParser {
   }
 
   void _emitEvent() {
-    final data = _currentData.endsWith('\n') ? _currentData.substring(0, _currentData.length - 1) : _currentData;
+    final data = _currentData.endsWith('\n')
+        ? _currentData.substring(0, _currentData.length - 1)
+        : _currentData;
 
     if (data.isNotEmpty) {
-      onEvent(EventSourceMessage(id: _lastEventId, type: _currentType, data: data));
+      onEvent(
+        EventSourceMessage(id: _lastEventId, type: _currentType, data: data),
+      );
     }
 
     _currentType = null;
@@ -122,7 +128,10 @@ class EventSourceParser {
     if (colon == -1) {
       return (field: line, value: '');
     }
-    return (field: line.substring(0, colon), value: _extractValue(line, colon + 1));
+    return (
+      field: line.substring(0, colon),
+      value: _extractValue(line, colon + 1),
+    );
   }
 
   String _extractValue(String line, int from) {

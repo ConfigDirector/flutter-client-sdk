@@ -6,11 +6,13 @@
 /// ```sh
 /// dart run tool/update_sdk_version.dart
 /// ```
+///
+/// `test/version_sync_test.dart` fails when the two drift apart. It reads the
+/// pubspec itself rather than sharing code with this script, so that a bug in
+/// the parsing below cannot hide the drift it is meant to catch.
 library;
 
 import 'dart:io';
-
-import 'pubspec_version.dart';
 
 const String _constantsPath = 'lib/src/constants.dart';
 
@@ -20,7 +22,7 @@ final RegExp _sdkVersionLine = RegExp(
 );
 
 void main() {
-  final version = readPubspecVersion();
+  final version = _pubspecVersion();
   final constants = File(_constantsPath);
   final source = constants.readAsStringSync();
 
@@ -44,4 +46,28 @@ void main() {
 
   constants.writeAsStringSync(updated);
   stdout.writeln('Updated sdkVersion to $version in $_constantsPath.');
+}
+
+/// Reads the top-level `version` field from `pubspec.yaml`.
+///
+/// A narrow regular expression keeps this script free of a YAML dependency.
+String _pubspecVersion() {
+  final pubspec = File('pubspec.yaml');
+  if (!pubspec.existsSync()) {
+    stderr.writeln(
+      'Could not find ${pubspec.absolute.path}. Run this from the package root.',
+    );
+    exit(1);
+  }
+
+  final match = RegExp(
+    r'^version:\s*(\S+)\s*$',
+    multiLine: true,
+  ).firstMatch(pubspec.readAsStringSync());
+  if (match == null) {
+    stderr.writeln('No top-level `version` field found in ${pubspec.path}.');
+    exit(1);
+  }
+
+  return match.group(1)!;
 }
