@@ -60,6 +60,11 @@ final class ConfigDirectorClientOptions {
 
   /// Metadata about your application that stays constant for the lifetime of
   /// the connection.
+  ///
+  /// Whichever of the app name and version this does not carry is read from the
+  /// platform — the application label and `versionName` on Android, the bundle
+  /// display name and short version string on iOS and macOS, and `version.json`
+  /// on web — so setting this is only needed to report something else.
   final ConfigDirectorMetaContext? metadata;
 
   /// Connection options.

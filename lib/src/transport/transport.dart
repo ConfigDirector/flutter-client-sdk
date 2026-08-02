@@ -9,7 +9,7 @@ typedef ConnectionRetryDelay = Duration Function(int attempt);
 
 /// Everything a [Transport] needs to reach the ConfigDirector server.
 final class TransportOptions {
-  const TransportOptions({
+  TransportOptions({
     required this.clientSdkKey,
     required this.baseUrl,
     required this.metaContext,
@@ -22,7 +22,12 @@ final class TransportOptions {
 
   final String clientSdkKey;
   final Uri baseUrl;
-  final SdkMetaContext metaContext;
+
+  /// Identifies the SDK and the host application. The client replaces it once
+  /// the app name and version have been resolved from the platform, which
+  /// happens before the first [Transport.connect].
+  SdkMetaContext metaContext;
+
   final String instanceId;
   final ConfigDirectorLogger logger;
   final ConnectionRetryDelay connectionRetryDelay;

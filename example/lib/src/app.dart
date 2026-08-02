@@ -36,12 +36,6 @@ class _SampleAppState extends State<SampleApp> {
     final client = ConfigDirectorClient(
       clientSdkKey: widget.sdkKey,
       options: ConfigDirectorClientOptions(
-        // Reported to ConfigDirector so targeting rules can be written against
-        // the app and its version.
-        metadata: const ConfigDirectorMetaContext(
-          appName: 'configdirector-flutter-sample-app',
-          appVersion: '1.0.0',
-        ),
         // The SDK logs at `warn` by default; the sample turns it all the way up
         // so the connection can be followed in the console.
         logger: ConsoleLogger(level: ConfigDirectorLogLevel.debug),

@@ -2,6 +2,7 @@ import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
+import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,7 @@ void main() {
     ConnectionOptions? connection,
     ConfigDirectorMetaContext? metadata,
     String? Function()? userAgentResolver,
+    AppInfoResolver? appInfoResolver,
   }) => DefaultConfigDirectorClient(
     'a-client-sdk-key',
     options: ConfigDirectorClientOptions(
@@ -35,6 +37,10 @@ void main() {
     },
     lifecycleWatcher: lifecycleWatcher,
     userAgentResolver: userAgentResolver,
+    // The platform is never consulted unless a test asks for it, so tests do
+    // not depend on what the host running them reports.
+    appInfoResolver:
+        appInfoResolver ?? () async => const ConfigDirectorMetaContext(),
   );
 
   setUp(() {
@@ -71,6 +77,121 @@ void main() {
       expect(
         transportOptions.single.metaContext.toJson(),
         isNot(contains('userAgent')),
+      );
+    });
+
+    test(
+      'falls back to the app name and version reported by the platform',
+      () async {
+        autoDispose(
+          createClient(
+            appInfoResolver: () async => const ConfigDirectorMetaContext(
+              appName: 'detected-app',
+              appVersion: '4.5.6',
+            ),
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(transportOptions.single.metaContext.toJson(), {
+          'appName': 'detected-app',
+          'appVersion': '4.5.6',
+          'sdkName': 'flutter-client-sdk',
+          'sdkVersion': constants.sdkVersion,
+          'userAgent': anything,
+        });
+      },
+    );
+
+    test('keeps the provided app name over the platform one, and fills in the '
+        'version that was left out', () async {
+      autoDispose(
+        createClient(
+          metadata: const ConfigDirectorMetaContext(appName: 'my-app'),
+          appInfoResolver: () async => const ConfigDirectorMetaContext(
+            appName: 'detected-app',
+            appVersion: '4.5.6',
+          ),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(
+        transportOptions.single.metaContext.toJson(),
+        allOf(
+          containsPair('appName', 'my-app'),
+          containsPair('appVersion', '4.5.6'),
+        ),
+      );
+    });
+
+    test('does not consult the platform when both were provided', () async {
+      var resolverCalls = 0;
+      autoDispose(
+        createClient(
+          metadata: const ConfigDirectorMetaContext(
+            appName: 'my-app',
+            appVersion: '1.2.3',
+          ),
+          appInfoResolver: () async {
+            resolverCalls++;
+            return const ConfigDirectorMetaContext();
+          },
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(resolverCalls, 0);
+      expect(logger.messages, isNot(contains(contains('could not find'))));
+    });
+
+    test(
+      'logs what it could not find when the platform reports nothing',
+      () async {
+        autoDispose(createClient());
+        await pumpEventQueue();
+
+        expect(
+          logger.messages,
+          contains(contains('could not find an app name and version')),
+        );
+      },
+    );
+
+    test(
+      'logs only the app version when that is all that is missing',
+      () async {
+        autoDispose(
+          createClient(
+            metadata: const ConfigDirectorMetaContext(appName: 'my-app'),
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(
+          logger.messages,
+          contains(contains('could not find an app version')),
+        );
+      },
+    );
+
+    test('still connects when reading the app info fails', () async {
+      final client = autoDispose(
+        createClient(
+          appInfoResolver: () async => throw StateError('no plugin'),
+        ),
+      );
+
+      await client.initialize();
+
+      expect(transport.connectCalls, hasLength(1));
+      expect(
+        transportOptions.single.metaContext.toJson(),
+        allOf(isNot(contains('appName')), isNot(contains('appVersion'))),
+      );
+      expect(
+        logger.messages,
+        contains(contains('could not find an app name and version')),
       );
     });
 

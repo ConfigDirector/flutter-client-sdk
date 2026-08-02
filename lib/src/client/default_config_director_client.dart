@@ -9,6 +9,7 @@ import '../constants.dart' as constants;
 import '../errors.dart';
 import '../lifecycle.dart';
 import '../logger.dart';
+import '../platform/app_info.dart';
 import '../platform/user_agent.dart';
 import '../transport/polling_transport.dart';
 import '../transport/streaming_transport.dart';
@@ -47,12 +48,13 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     AppLifecycleWatcher? lifecycleWatcher,
     ConnectionRetryDelay? connectionRetryDelay,
     String? Function()? userAgentResolver,
+    AppInfoResolver? appInfoResolver,
   }) : _logger = options?.logger ?? ConsoleLogger(),
        _timeout = options?.connection.timeout ?? const Duration(seconds: 3) {
     _validateSdkKey(clientSdkKey);
 
     final connection = options?.connection ?? const ConnectionOptions();
-    final transportOptions = TransportOptions(
+    final transportOptions = _transportOptions = TransportOptions(
       clientSdkKey: clientSdkKey,
       baseUrl: _resolveBaseUrl(connection.baseUrl),
       metaContext: SdkMetaContext(
@@ -78,12 +80,22 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(_logger);
       _lifecycleWatcher!.start(_handleLifecycleState);
     }
+
+    _appInfoResolved = _resolveAppInfo(
+      options?.metadata,
+      appInfoResolver ?? resolveAppInfo,
+    );
   }
 
   final ConfigDirectorLogger _logger;
   final Duration _timeout;
 
+  late final TransportOptions _transportOptions;
   late final Transport _transport;
+
+  /// Completes once the app name and version have been filled in on
+  /// [_transportOptions], whether or not the platform reported them.
+  late final Future<void> _appInfoResolved;
   late final StreamSubscription<ConfigSet> _configSetSubscription;
   AppLifecycleWatcher? _lifecycleWatcher;
 
@@ -251,6 +263,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       _readyCompleter = readyCompleter;
 
       final stopwatch = Stopwatch()..start();
+      // Only the first connection waits on this; afterwards it has completed.
+      await _appInfoResolved;
       await _transport.connect(
         context ?? const ConfigDirectorContext(),
         _timeout,
@@ -278,6 +292,52 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         '[ConfigDirectorClient] An error occurred during ${action.description}',
         error,
         stackTrace,
+      );
+    }
+  }
+
+  /// Fills in whichever of the app name and version the application did not
+  /// provide with the value the platform reports for the running application.
+  ///
+  /// The platform is not consulted at all when both were provided. Failures are
+  /// not fatal: the SDK reports whatever it has and carries on connecting.
+  Future<void> _resolveAppInfo(
+    ConfigDirectorMetaContext? provided,
+    AppInfoResolver resolver,
+  ) async {
+    var appName = provided?.appName;
+    var appVersion = provided?.appVersion;
+
+    if (appName == null || appVersion == null) {
+      try {
+        final detected = await resolver().timeout(_timeout);
+        appName ??= detected.appName;
+        appVersion ??= detected.appVersion;
+      } on Object catch (error, stackTrace) {
+        _logger.debug(
+          '[ConfigDirectorClient] Failed to read the app name and version from the platform',
+          error,
+          stackTrace,
+        );
+      }
+
+      final metaContext = _transportOptions.metaContext;
+      _transportOptions.metaContext = metaContext.withMetadata(
+        ConfigDirectorMetaContext(appName: appName, appVersion: appVersion),
+      );
+    }
+
+    final missing = [
+      if (appName == null) 'name',
+      if (appVersion == null) 'version',
+    ];
+    if (missing.isNotEmpty) {
+      final pronoun = missing.length == 1 ? 'it' : 'them';
+      _logger.info(
+        '[ConfigDirectorClient] The ConfigDirector SDK could not find an app '
+        '${missing.join(' and ')}, so targeting rules that use $pronoun will '
+        'not match. Provide $pronoun through '
+        'ConfigDirectorClientOptions.metadata.',
       );
     }
   }

@@ -11,6 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.6.0
+  # Used to read the host app's name and version when they are not supplied
+  # through the client options. 10.x requires Dart ^3.10.0, so a single
+  # `^10.0.0` would make `pub get` fail on the oldest SDK this package supports.
+  # The range lets a modern toolchain resolve 10.x while the minimum-version CI
+  # job resolves 9.x.
+  package_info_plus: ">=8.0.2 <11.0.0"
   uuid: ^4.6.0
   web: ^1.1.1
 

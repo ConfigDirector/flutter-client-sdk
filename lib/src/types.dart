@@ -207,11 +207,20 @@ final class ConfigDirectorContext {
 
 /// Metadata about your application. Including these values lets you write
 /// targeting rules against them.
+///
+/// Each field the client is not given is filled in with the value the platform
+/// reports for the running application, so most applications do not need to set
+/// either one.
 @immutable
 final class ConfigDirectorMetaContext {
   const ConfigDirectorMetaContext({this.appName, this.appVersion});
 
+  /// Your application's name. Defaults to the name the platform reports, such
+  /// as the application label on Android or `CFBundleDisplayName` on iOS.
   final String? appName;
+
+  /// Your application's version. Defaults to the version the platform reports,
+  /// such as `versionName` on Android or `CFBundleShortVersionString` on iOS.
   final String? appVersion;
 
   Map<String, Object?> toJson() => {
@@ -236,6 +245,15 @@ final class SdkMetaContext {
 
   /// The browser's user agent on web, and the platform name elsewhere.
   final String? userAgent;
+
+  /// Returns a copy of this context carrying [metadata] in place of its own.
+  SdkMetaContext withMetadata(ConfigDirectorMetaContext metadata) =>
+      SdkMetaContext(
+        sdkName: sdkName,
+        sdkVersion: sdkVersion,
+        metadata: metadata,
+        userAgent: userAgent,
+      );
 
   Map<String, Object?> toJson() => {
     ...?metadata?.toJson(),

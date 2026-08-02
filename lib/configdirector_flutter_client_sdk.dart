@@ -3,7 +3,7 @@
 ///
 /// ```dart
 /// final client = ConfigDirectorClient(
-///   'YOUR-SDK-KEY',
+///   clientSdkKey: 'YOUR-SDK-KEY',
 ///   options: const ConfigDirectorClientOptions(
 ///     metadata: ConfigDirectorMetaContext(appName: 'my-app', appVersion: '1.0.0'),
 ///   ),
