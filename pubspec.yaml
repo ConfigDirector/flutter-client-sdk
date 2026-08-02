@@ -1,6 +1,6 @@
 name: configdirector_flutter_client_sdk
 description: "Flutter client SDK for ConfigDirector. ConfigDirector is a remote configuration and feature flag service."
-version: 0.0.1
+version: 0.0.2
 homepage: https://www.configdirector.com
 
 environment:

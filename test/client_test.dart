@@ -1,5 +1,7 @@
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/constants.dart'
+    as constants;
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/foundation.dart';
@@ -57,7 +59,7 @@ void main() {
         'appName': 'my-app',
         'appVersion': '1.2.3',
         'sdkName': 'flutter-client-sdk',
-        'sdkVersion': '0.0.1',
+        'sdkVersion': constants.sdkVersion,
         // The browser's user agent on web, the platform name everywhere else.
         'userAgent': kIsWeb ? contains('Mozilla/') : defaultTargetPlatform.name,
       });

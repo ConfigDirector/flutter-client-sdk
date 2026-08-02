@@ -6,5 +6,9 @@ final Uri clientBaseUrl = Uri.parse(
 /// The name this SDK identifies itself with to the ConfigDirector server.
 const String sdkName = 'flutter-client-sdk';
 
-/// The version of this SDK. Must be kept in sync with `pubspec.yaml`.
-const String sdkVersion = '0.0.1';
+/// The version of this SDK.
+///
+/// Kept in sync with the `version` field in `pubspec.yaml`: run
+/// `dart run tool/update_sdk_version.dart` after bumping it. The
+/// `version_sync_test.dart` test fails if the two ever drift apart.
+const String sdkVersion = '0.0.2';
