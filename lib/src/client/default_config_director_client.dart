@@ -11,6 +11,10 @@ import '../lifecycle.dart';
 import '../logger.dart';
 import '../platform/app_info.dart';
 import '../platform/user_agent.dart';
+import '../telemetry/reporter_factory.dart';
+import '../telemetry/telemetry_client.dart';
+import '../telemetry/telemetry_event_collector.dart';
+import '../telemetry/telemetry_events.dart';
 import '../transport/polling_transport.dart';
 import '../transport/streaming_transport.dart';
 import '../transport/transport.dart';
@@ -49,14 +53,27 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     ConnectionRetryDelay? connectionRetryDelay,
     String? Function()? userAgentResolver,
     AppInfoResolver? appInfoResolver,
+    TelemetryClient? telemetryClient,
   }) : _logger = options?.logger ?? ConsoleLogger(),
        _timeout = options?.connection.timeout ?? const Duration(seconds: 3) {
     _validateSdkKey(clientSdkKey);
 
     final connection = options?.connection ?? const ConnectionOptions();
+    final baseUrl = _resolveBaseUrl(connection.baseUrl);
+    _telemetry =
+        telemetryClient ??
+        TelemetryEventCollector(
+          logger: _logger,
+          reporter: createEventReporter(
+            sdkKey: clientSdkKey,
+            baseUrl: baseUrl,
+            logger: _logger,
+          ),
+        );
+
     final transportOptions = _transportOptions = TransportOptions(
       clientSdkKey: clientSdkKey,
-      baseUrl: _resolveBaseUrl(connection.baseUrl),
+      baseUrl: baseUrl,
       metaContext: SdkMetaContext(
         sdkName: constants.sdkName,
         sdkVersion: constants.sdkVersion,
@@ -75,11 +92,12 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         _createTransport(connection.mode, transportOptions);
     _configSetSubscription = _transport.configSets.listen(_handleConfigSet);
 
-    if (connection.pauseWhileBackgrounded) {
-      _lifecycleWatcher =
-          lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(_logger);
-      _lifecycleWatcher!.start(_handleLifecycleState);
-    }
+    // The lifecycle is always worth following: telemetry is reported when the
+    // app leaves the foreground even when the connection is left alone.
+    _pauseWhileBackgrounded = connection.pauseWhileBackgrounded;
+    _lifecycleWatcher =
+        lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(_logger);
+    _lifecycleWatcher!.start(_handleLifecycleState);
 
     _appInfoResolved = _resolveAppInfo(
       options?.metadata,
@@ -92,6 +110,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   late final TransportOptions _transportOptions;
   late final Transport _transport;
+  late final TelemetryClient _telemetry;
+  late final bool _pauseWhileBackgrounded;
 
   /// Completes once the app name and version have been filled in on
   /// [_transportOptions], whether or not the platform reported them.
@@ -234,6 +254,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
     _lifecycleWatcher?.stop();
     _lifecycleWatcher = null;
+    unawaited(_telemetry.close());
     unawaited(_configSetSubscription.cancel());
     unwatchAll();
 
@@ -270,6 +291,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         _timeout,
       );
       _currentContext = context;
+      unawaited(_telemetry.updateContext(context));
       _emit(_contextUpdated, ContextUpdatedEvent(context));
 
       // The transport may have spent part of the budget connecting; only the
@@ -383,9 +405,23 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     T defaultValue,
   ) {
     if (configState == null) {
+      final reason = _ready
+          ? EvaluationReason.configStateMissing
+          : EvaluationReason.clientNotReady;
       _logger.debug(
         "[ConfigDirectorClient] No config state found for '$configKey', "
         "returning default value '$defaultValue'",
+      );
+      _telemetry.evaluatedConfig(
+        EvaluatedConfigEvent.fromEvaluation(
+          contextId: _currentContext?.id,
+          key: configKey,
+          defaultValue: defaultValue,
+          requestedType: requestedTypeOf<T>(defaultValue),
+          evaluatedValue: defaultValue,
+          usedDefault: true,
+          evaluationReason: reason,
+        ),
       );
       _emit(
         _configEvaluated,
@@ -394,9 +430,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
             key: configKey,
             value: defaultValue,
             isDefaultValue: true,
-            reason: _ready
-                ? EvaluationReason.configStateMissing
-                : EvaluationReason.clientNotReady,
+            reason: reason,
             context: _currentContext,
           ),
         ),
@@ -405,6 +439,19 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
 
     final result = parseConfigValue(configState, defaultValue);
+    _telemetry.evaluatedConfig(
+      EvaluatedConfigEvent.fromEvaluation(
+        contextId: _currentContext?.id,
+        key: configKey,
+        type: configState.type,
+        defaultValue: defaultValue,
+        requestedType: requestedTypeOf<T>(defaultValue),
+        evaluatedValue: result.value,
+        evaluatedValueId: result.valueId,
+        usedDefault: result.usedDefault,
+        evaluationReason: result.reason,
+      ),
+    );
     _emit(
       _configEvaluated,
       ConfigEvaluatedEvent(
@@ -425,32 +472,42 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   }
 
   void _handleLifecycleState(AppLifecycleState state) {
-    // Nothing to pause or resume until the application has connected once.
-    if (!_hasConnected || _disposed) {
+    if (_disposed) {
       return;
     }
 
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        if (_pausedWhileBackgrounded) {
-          return;
-        }
-        _pausedWhileBackgrounded = true;
-        pauseNetwork();
+        unawaited(_telemetry.flush());
+        _pauseWhileBackgroundedIfEnabled();
+      // The app is leaving the foreground and may not come back, so telemetry
+      // goes out at the first sign of it. The connection is not dropped over
+      // it: `hidden` and `inactive` also cover transient interruptions, such as
+      // the app switcher or an incoming call.
+      case AppLifecycleState.hidden:
+        unawaited(_telemetry.flush());
+      case AppLifecycleState.inactive:
+        break;
       case AppLifecycleState.resumed:
         if (!_pausedWhileBackgrounded) {
           return;
         }
         _pausedWhileBackgrounded = false;
         unawaited(resumeNetwork());
-      // `inactive` and `hidden` cover transient interruptions, such as the app
-      // switcher or an incoming call, which are not worth dropping a connection
-      // over.
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.hidden:
-        break;
     }
+  }
+
+  void _pauseWhileBackgroundedIfEnabled() {
+    // Nothing to pause until the application has connected once.
+    if (!_pauseWhileBackgrounded ||
+        !_hasConnected ||
+        _pausedWhileBackgrounded) {
+      return;
+    }
+
+    _pausedWhileBackgrounded = true;
+    pauseNetwork();
   }
 
   void _emit<T>(StreamController<T> controller, T event) {

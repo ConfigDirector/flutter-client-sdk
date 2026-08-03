@@ -3,6 +3,8 @@ import 'package:configdirector_flutter_client_sdk/src/client/default_config_dire
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
 import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_value.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +16,7 @@ import 'support/fakes.dart';
 void main() {
   late FakeTransport transport;
   late FakeLifecycleWatcher lifecycleWatcher;
+  late FakeTelemetryClient telemetry;
   late RecordingLogger logger;
   late List<TransportOptions> transportOptions;
 
@@ -22,6 +25,7 @@ void main() {
     ConfigDirectorMetaContext? metadata,
     String? Function()? userAgentResolver,
     AppInfoResolver? appInfoResolver,
+    TelemetryClient? telemetryClient,
   }) => DefaultConfigDirectorClient(
     'a-client-sdk-key',
     options: ConfigDirectorClientOptions(
@@ -31,6 +35,9 @@ void main() {
           connection ??
           const ConnectionOptions(timeout: Duration(milliseconds: 50)),
     ),
+    // Telemetry is faked by default so that tests neither start the telemetry
+    // isolate nor leave its flush timer running.
+    telemetryClient: telemetryClient ?? telemetry,
     transportFactory: (options) {
       transportOptions.add(options);
       return transport;
@@ -46,6 +53,7 @@ void main() {
   setUp(() {
     transport = FakeTransport();
     lifecycleWatcher = FakeLifecycleWatcher();
+    telemetry = FakeTelemetryClient();
     logger = RecordingLogger();
     transportOptions = [];
   });
@@ -785,14 +793,146 @@ void main() {
       expect(transport.connectCalls.length, 1);
     });
 
-    test('is not registered when disabled', () {
+    test('does not pause the connection when disabled', () async {
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(pauseWhileBackgrounded: false),
+        ),
+      );
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      lifecycleWatcher.send(AppLifecycleState.paused);
+
+      expect(transport.closeCount, 0);
+    });
+
+    // Telemetry is reported when the app leaves the foreground, so the
+    // lifecycle is followed whether or not the connection is paused with it.
+    test('is followed even when pausing is disabled', () {
       autoDispose(
         createClient(
           connection: const ConnectionOptions(pauseWhileBackgrounded: false),
         ),
       );
 
-      expect(lifecycleWatcher.isStarted, isFalse);
+      lifecycleWatcher.send(AppLifecycleState.hidden);
+
+      expect(lifecycleWatcher.isStarted, isTrue);
+      expect(telemetry.flushCount, 1);
+    });
+
+    test('flushes telemetry when the app leaves the foreground', () async {
+      autoDispose(createClient());
+
+      lifecycleWatcher.send(AppLifecycleState.inactive);
+      expect(telemetry.flushCount, 0);
+
+      lifecycleWatcher.send(AppLifecycleState.hidden);
+      lifecycleWatcher.send(AppLifecycleState.paused);
+
+      expect(telemetry.flushCount, 2);
+    });
+  });
+
+  group('telemetry', () {
+    test('records an evaluation against the current context', () async {
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-123'),
+      );
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'max-items': configState('max-items', ConfigType.integer, '25'),
+          },
+        ),
+      );
+      await initialization;
+
+      client.getValue('max-items', 10);
+
+      final event = telemetry.events.single;
+      expect(event.key, 'max-items');
+      expect(event.contextId, 'user-123');
+      expect(event.type, ConfigType.integer);
+      expect(event.requestedType, 'int');
+      expect(event.defaultValue, const TelemetryValue(value: '10'));
+      expect(event.evaluatedValue, const TelemetryValue(value: '25'));
+      expect(event.evaluatedValueId, 'value-id');
+      expect(event.usedDefault, isFalse);
+      expect(event.evaluationReason, EvaluationReason.foundMatch);
+    });
+
+    test('records an evaluation that fell back to the default value', () {
+      final client = autoDispose(createClient());
+
+      client.getValue('greeting', 'hi');
+
+      final event = telemetry.events.single;
+      expect(event.key, 'greeting');
+      expect(event.type, isNull);
+      expect(event.requestedType, 'String');
+      expect(event.evaluatedValue, const TelemetryValue(value: 'hi'));
+      expect(event.evaluatedValueId, isNull);
+      expect(event.usedDefault, isTrue);
+      expect(event.evaluationReason, EvaluationReason.clientNotReady);
+    });
+
+    test('records the evaluations behind a watch stream', () async {
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      client.watch('dark-mode', false).listen(null);
+      await pumpEventQueue();
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+          },
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(telemetry.events.map((e) => e.evaluatedValue.value), [
+        'false',
+        'true',
+      ]);
+    });
+
+    test('hands the new context over once it takes effect', () async {
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await client.updateContext(const ConfigDirectorContext(id: 'user-123'));
+
+      expect(telemetry.contextUpdates, [
+        null,
+        const ConfigDirectorContext(id: 'user-123'),
+      ]);
+    });
+
+    test('is not updated when the connection fails', () async {
+      final client = autoDispose(createClient());
+      transport.connectError = const ConfigDirectorConnectionError('nope');
+
+      await client.initialize(const ConfigDirectorContext(id: 'user-123'));
+
+      expect(telemetry.contextUpdates, isEmpty);
+    });
+
+    test('is closed with the client', () {
+      createClient().dispose();
+
+      expect(telemetry.closeCount, 1);
     });
   });
 

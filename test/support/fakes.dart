@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:configdirector_flutter_client_sdk/src/lifecycle.dart';
 import 'package:configdirector_flutter_client_sdk/src/logger.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/widgets.dart';
@@ -66,6 +69,54 @@ final class FakeLifecycleWatcher implements AppLifecycleWatcher {
   }
 
   void send(AppLifecycleState state) => _onStateChanged?.call(state);
+}
+
+final class FakeTelemetryClient implements TelemetryClient {
+  final List<EvaluatedConfigEvent> events = [];
+  final List<ConfigDirectorContext?> contextUpdates = [];
+  int flushCount = 0;
+  int closeCount = 0;
+
+  @override
+  void evaluatedConfig(EvaluatedConfigEvent event) => events.add(event);
+
+  @override
+  Future<void> updateContext(ConfigDirectorContext? context) async =>
+      contextUpdates.add(context);
+
+  @override
+  Future<void> flush() async => flushCount++;
+
+  @override
+  Future<void> close() async => closeCount++;
+}
+
+final class FakeEventReporter implements EventReporter {
+  final List<EventReportRequest> requests = [];
+  int closeCount = 0;
+
+  /// The response the next [report] completes with.
+  ReporterResponse response = const ReporterResponse.succeeded();
+
+  /// Thrown by [report] when set.
+  Object? error;
+
+  /// Held by [report] until completed, to exercise overlapping flushes.
+  Completer<void>? gate;
+
+  @override
+  Future<ReporterResponse> report(EventReportRequest request) async {
+    requests.add(request);
+    await gate?.future;
+    final error = this.error;
+    if (error != null) {
+      throw error;
+    }
+    return response;
+  }
+
+  @override
+  Future<void> close() async => closeCount++;
 }
 
 /// A logger that records messages instead of writing them, keeping test output

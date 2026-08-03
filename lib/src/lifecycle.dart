@@ -35,9 +35,11 @@ final class WidgetsBindingLifecycleWatcher
     } on Object catch (error) {
       _logger.warn(
         '[ConfigDirectorClient] The widgets binding is not initialized, so the '
-        'connection will not be paused automatically while the app is in the '
-        'background. Call WidgetsFlutterBinding.ensureInitialized() before '
-        'creating the client, or pause and resume the connection manually.',
+        'SDK cannot follow the app lifecycle: the connection will not be paused '
+        'automatically while the app is in the background, and telemetry will '
+        'only be reported on its regular interval. Call '
+        'WidgetsFlutterBinding.ensureInitialized() before creating the client, '
+        'or pause and resume the connection manually.',
         error,
       );
     }

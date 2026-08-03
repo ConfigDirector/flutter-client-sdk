@@ -119,7 +119,7 @@ abstract interface class ConfigDirectorClient {
   Future<void> resumeNetwork();
 
   /// Disposes of the client: closes the connection, every watch stream, and
-  /// every event stream.
+  /// every event stream, and reports whatever telemetry is left.
   ///
   /// Call this when your application shuts down. The client cannot be used
   /// afterwards.
