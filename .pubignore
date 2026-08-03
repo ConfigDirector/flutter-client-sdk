@@ -1,23 +1,19 @@
 # Files excluded from the published pub.dev archive.
-
 #
-
 # A `.pubignore` replaces the `.gitignore` in its own directory for publishing
-
 # purposes, so this file has to repeat the root `.gitignore` entries as well as
-
 # the publish-only exclusions below. Verify with `flutter pub publish --dry-run`.
+#
+# This is a gitignore-syntax file, not Markdown: the `*` globs below are
+# patterns, not emphasis. See .vscode/settings.json for the file association
+# that keeps editors from reformatting them.
 
 # --- Publish-only exclusions -------------------------------------------------
 
-# The sample app's platform scaffolding. `example/lib/` and `example/README.md`
-
-# stay in the archive: pub.dev renders them as the package's Example tab, and
-
-# pana scores their presence. The generated Android/iOS/web/desktop projects
-
-# around them are pure bulk to a consumer.
-
+# The sample app's platform scaffolding. `example/lib/`, `example/test/` and
+# `example/README.md` stay in the archive: pub.dev renders them as the package's
+# Example tab, and pana scores their presence. The generated Android/iOS/web/
+# desktop projects around them are pure bulk to a consumer.
 /example/android/
 /example/ios/
 /example/linux/
@@ -29,13 +25,10 @@
 /example/analysis_options.yaml
 
 # The SDK's own test suite. Consumers never run it.
-
 /test/
 
 # Repository tooling: version-sync script, git hooks, validation and format
-
 # scripts. Only meaningful when working on the SDK itself.
-
 /tool/
 /format.sh
 /.github/
@@ -45,11 +38,10 @@
 # --- Mirrors the root .gitignore ---------------------------------------------
 
 # Miscellaneous
-
-_.class
-_.log
-_.pyc
-_.swp
+*.class
+*.log
+*.pyc
+*.swp
 .DS_Store
 .atom/
 .buildlog/
@@ -58,19 +50,17 @@ _.swp
 migrate_working_dir/
 
 # IntelliJ related
-
-_.iml
-_.ipr
-\*.iws
+*.iml
+*.ipr
+*.iws
 .idea/
 
 .vscode/
 .claude/
 
 # Flutter/Dart/Pub related
-
 /pubspec.lock
-\*\*/doc/api/
+**/doc/api/
 .dart_tool/
 .flutter-plugins-dependencies
 /build/

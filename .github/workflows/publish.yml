@@ -1,0 +1,121 @@
+name: Publish
+
+# Publishes to pub.dev when a `v<version>` tag is pushed, using pub.dev's
+# automated publishing: GitHub mints a short-lived OIDC token for this workflow
+# and pub.dev accepts it in place of a long-lived credential, so there is no
+# secret to store or rotate.
+#
+# Releasing:
+#
+#   1. Bump `version` in pubspec.yaml.
+#   2. `dart run tool/update_sdk_version.dart` to match lib/src/constants.dart.
+#   3. Add the release to CHANGELOG.md.
+#   4. Commit, then `git tag v0.1.0 && git push origin v0.1.0`.
+#
+# `workflow_dispatch` runs everything except the upload, which is a way to
+# rehearse a release without one.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    # Must match the environment configured on pub.dev under
+    # Admin > Automated publishing, or pub.dev rejects the token. Leave both
+    # unset to publish without one; setting it allows required reviewers or a
+    # wait timer to gate the upload.
+    environment: pub.dev
+    permissions:
+      contents: read
+      # Required for pub.dev to accept the GitHub-issued OIDC token.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The tag is what a consumer sees, the pubspec is what pub.dev records and
+      # `sdkVersion` is what the SDK reports to the server. Publishing is not
+      # reversible, so all three are checked before the upload rather than after.
+      - name: Check the tag matches the package version
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          pubspec="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)"
+          sdk="$(sed -n "s/^const String sdkVersion = '\(.*\)';\$/\1/p" lib/src/constants.dart)"
+
+          echo "tag=$tag pubspec=$pubspec constants=$sdk"
+
+          if [ "$tag" != "$pubspec" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pubspec version $pubspec."
+            exit 1
+          fi
+          if [ "$sdk" != "$pubspec" ]; then
+            echo "::error::sdkVersion ($sdk) does not match pubspec version ($pubspec). Run: dart run tool/update_sdk_version.dart"
+            exit 1
+          fi
+
+      - name: Check CHANGELOG has an entry for this version
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if ! grep -qE "^#+[[:space:]]*\[?${version//./\\.}\]?([[:space:]]|$)" CHANGELOG.md; then
+            echo "::error::No CHANGELOG.md heading found for $version."
+            exit 1
+          fi
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed --language-version=latest .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: Obtain a pub.dev credential from the GitHub OIDC provider
+        run: |
+          set -euo pipefail
+          token="$(curl -sSf \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://pub.dev" \
+            | jq -r '.value')"
+          echo "::add-mask::$token"
+          echo "PUB_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Authenticate with pub.dev
+        run: flutter pub token add https://pub.dev --env-var PUB_TOKEN
+
+      - name: Publish (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        run: flutter pub publish --dry-run
+
+      - name: Publish
+        if: github.event_name == 'push'
+        run: flutter pub publish --force
