@@ -11,4 +11,4 @@ const String sdkName = 'flutter-client-sdk';
 /// Kept in sync with the `version` field in `pubspec.yaml`: run
 /// `dart run tool/update_sdk_version.dart` after bumping it. The
 /// `version_sync_test.dart` test fails if the two ever drift apart.
-const String sdkVersion = '0.0.2';
+const String sdkVersion = '0.1.0';
