@@ -2,6 +2,7 @@
 final class ConfigDirectorConnectionError implements Exception {
   const ConfigDirectorConnectionError(this.message, [this.status]);
 
+  /// A description of what went wrong.
   final String message;
 
   /// The HTTP status code the connection failed with, when one was received.
@@ -15,6 +16,7 @@ final class ConfigDirectorConnectionError implements Exception {
 final class ConfigDirectorValidationError implements Exception {
   const ConfigDirectorValidationError(this.message);
 
+  /// A description of which argument or option was invalid, and why.
   final String message;
 
   @override

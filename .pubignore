@@ -1,0 +1,77 @@
+# Files excluded from the published pub.dev archive.
+
+#
+
+# A `.pubignore` replaces the `.gitignore` in its own directory for publishing
+
+# purposes, so this file has to repeat the root `.gitignore` entries as well as
+
+# the publish-only exclusions below. Verify with `flutter pub publish --dry-run`.
+
+# --- Publish-only exclusions -------------------------------------------------
+
+# The sample app's platform scaffolding. `example/lib/` and `example/README.md`
+
+# stay in the archive: pub.dev renders them as the package's Example tab, and
+
+# pana scores their presence. The generated Android/iOS/web/desktop projects
+
+# around them are pure bulk to a consumer.
+
+/example/android/
+/example/ios/
+/example/linux/
+/example/macos/
+/example/windows/
+/example/web/
+/example/.metadata
+/example/env.example.json
+/example/analysis_options.yaml
+
+# The SDK's own test suite. Consumers never run it.
+
+/test/
+
+# Repository tooling: version-sync script, git hooks, validation and format
+
+# scripts. Only meaningful when working on the SDK itself.
+
+/tool/
+/format.sh
+/.github/
+/.metadata
+/configdirector_flutter_client_sdk.iml
+
+# --- Mirrors the root .gitignore ---------------------------------------------
+
+# Miscellaneous
+
+_.class
+_.log
+_.pyc
+_.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+migrate_working_dir/
+
+# IntelliJ related
+
+_.iml
+_.ipr
+\*.iws
+.idea/
+
+.vscode/
+.claude/
+
+# Flutter/Dart/Pub related
+
+/pubspec.lock
+\*\*/doc/api/
+.dart_tool/
+.flutter-plugins-dependencies
+/build/
+/coverage/

@@ -4,12 +4,19 @@ import '../types.dart';
 
 /// What prompted the client to (re)connect.
 enum ClientConnectAction {
+  /// The client connected for the first time, from `initialize`.
   initialization('initialization'),
+
+  /// The client reconnected to re-evaluate configs against a new context.
   contextUpdate('context update'),
+
+  /// The client reconnected after the network was resumed, either by
+  /// `resumeNetwork` or by the app returning to the foreground.
   networkResume('network resume');
 
   const ClientConnectAction(this.description);
 
+  /// A human-readable name for the action, used when it is logged.
   final String description;
 }
 
@@ -43,6 +50,8 @@ final class ConfigsUpdatedEvent {
 final class ContextUpdatedEvent {
   const ContextUpdatedEvent(this.context);
 
+  /// The context configs are now evaluated against, or `null` once the context
+  /// has been cleared.
   final ConfigDirectorContext? context;
 
   @override
@@ -54,6 +63,7 @@ final class ContextUpdatedEvent {
 final class ConfigEvaluatedEvent {
   const ConfigEvaluatedEvent(this.evaluation);
 
+  /// The value the config evaluated to, and why.
   final ConfigEvaluation evaluation;
 
   @override

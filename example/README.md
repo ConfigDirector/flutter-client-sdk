@@ -45,7 +45,7 @@ This app resolves the SDK from the repository it lives in:
 
 ```yaml
 dependencies:
-  configdirector_flutter_client_sdk: ^0.0.2
+  configdirector_flutter_client_sdk: ^0.1.0
 
 # Delete this once the package is published to pub.dev.
 dependency_overrides:

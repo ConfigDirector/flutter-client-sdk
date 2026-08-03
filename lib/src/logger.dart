@@ -2,10 +2,21 @@ import 'package:flutter/foundation.dart';
 
 /// The verbosity of a [ConfigDirectorLogger].
 enum ConfigDirectorLogLevel {
+  /// Drops every message.
   off(-1, 'OFF'),
+
+  /// Failures the SDK could not recover from.
   error(0, 'ERROR'),
+
+  /// Recoverable problems, such as a connection that is being retried. This is
+  /// the default level.
   warn(1, 'WARN'),
+
+  /// Lifecycle milestones, such as the client becoming ready.
   info(2, 'INFO'),
+
+  /// Per-request and per-evaluation detail. Useful when diagnosing a problem,
+  /// but noisy in production.
   debug(3, 'DEBUG');
 
   const ConfigDirectorLogLevel(this.severity, this.label);
@@ -21,12 +32,20 @@ enum ConfigDirectorLogLevel {
 /// The logging sink used by the SDK. Implement this to route SDK logs into your
 /// application's own logging infrastructure.
 abstract interface class ConfigDirectorLogger {
+  /// Writes [message] at [ConfigDirectorLogLevel.debug], along with [error] and
+  /// [stackTrace] when they are given.
   void debug(String message, [Object? error, StackTrace? stackTrace]);
 
+  /// Writes [message] at [ConfigDirectorLogLevel.info], along with [error] and
+  /// [stackTrace] when they are given.
   void info(String message, [Object? error, StackTrace? stackTrace]);
 
+  /// Writes [message] at [ConfigDirectorLogLevel.warn], along with [error] and
+  /// [stackTrace] when they are given.
   void warn(String message, [Object? error, StackTrace? stackTrace]);
 
+  /// Writes [message] at [ConfigDirectorLogLevel.error], along with [error] and
+  /// [stackTrace] when they are given.
   void error(String message, [Object? error, StackTrace? stackTrace]);
 }
 

@@ -14,7 +14,7 @@ dependencies:
   # points pub at the package this app lives in. Once it is published, delete
   # that section and this dependency resolves from pub.dev with nothing else to
   # change here.
-  configdirector_flutter_client_sdk: ^0.0.2
+  configdirector_flutter_client_sdk: ^0.1.0
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

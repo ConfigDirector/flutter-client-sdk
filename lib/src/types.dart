@@ -181,6 +181,8 @@ final class ConfigDirectorContext {
   /// Defaults to `false` on the server when omitted.
   final bool? anonymous;
 
+  /// The wire representation sent to the ConfigDirector server. Fields left
+  /// unset are omitted rather than sent as `null`.
   Map<String, Object?> toJson() => {
     if (id != null) 'id': id,
     if (name != null) 'name': name,
@@ -223,6 +225,8 @@ final class ConfigDirectorMetaContext {
   /// such as `versionName` on Android or `CFBundleShortVersionString` on iOS.
   final String? appVersion;
 
+  /// The wire representation sent to the ConfigDirector server. Fields left
+  /// unset are omitted rather than sent as `null`.
   Map<String, Object?> toJson() => {
     if (appName != null) 'appName': appName,
     if (appVersion != null) 'appVersion': appVersion,
@@ -291,6 +295,7 @@ enum EvaluationReason {
 
   const EvaluationReason(this.wireName);
 
+  /// The name this reason is reported to the ConfigDirector server under.
   final String wireName;
 }
 
@@ -306,14 +311,24 @@ final class ConfigEvaluation {
     this.context,
   });
 
+  /// The key of the config that was evaluated.
   final String key;
+
+  /// The value the config evaluated to. This is the default value supplied by
+  /// the caller when [isDefaultValue] is `true`.
   final Object value;
+
+  /// Identifies the specific config value that was served, for telemetry. It is
+  /// `null` when the default value was returned.
   final String? valueId;
 
   /// Whether the default value provided by the caller was returned.
   final bool isDefaultValue;
 
+  /// Why the config evaluated to [value].
   final EvaluationReason reason;
+
+  /// The context the config was evaluated against, if one was set.
   final ConfigDirectorContext? context;
 
   @override
