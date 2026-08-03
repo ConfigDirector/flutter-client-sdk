@@ -1,18 +1,21 @@
-import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 
 /// The verbosity of a [ConfigDirectorLogger].
 enum ConfigDirectorLogLevel {
-  off(-1),
-  error(0),
-  warn(1),
-  info(2),
-  debug(3);
+  off(-1, 'OFF'),
+  error(0, 'ERROR'),
+  warn(1, 'WARN'),
+  info(2, 'INFO'),
+  debug(3, 'DEBUG');
 
-  const ConfigDirectorLogLevel(this.severity);
+  const ConfigDirectorLogLevel(this.severity, this.label);
 
   /// Higher values are more verbose. A logger emits a message when the
   /// message's severity is at most the logger's configured severity.
   final int severity;
+
+  /// The label used when a level is written to the console.
+  final String label;
 }
 
 /// The logging sink used by the SDK. Implement this to route SDK logs into your
@@ -30,8 +33,16 @@ abstract interface class ConfigDirectorLogger {
 /// Decorates a message before it is written, typically to prefix it.
 typedef LogMessageDecorator = String Function(String message);
 
-/// The default logger, which writes to the developer log (visible in the
-/// console and in Flutter DevTools).
+/// The default logger, which writes to the console via [debugPrint].
+///
+/// Each record is written as a single line, with the error and stack trace (if
+/// any) on the lines that follow:
+///
+/// ```text
+/// 2026-08-02T09:41:07.412 [WARN] [ConfigDirector:flutter-client-sdk] message
+/// ```
+///
+/// Timestamps are in local time.
 final class ConsoleLogger implements ConfigDirectorLogger {
   ConsoleLogger({
     this.level = ConfigDirectorLogLevel.warn,
@@ -48,23 +59,22 @@ final class ConsoleLogger implements ConfigDirectorLogger {
 
   @override
   void debug(String message, [Object? error, StackTrace? stackTrace]) =>
-      _log(ConfigDirectorLogLevel.debug, 500, message, error, stackTrace);
+      _log(ConfigDirectorLogLevel.debug, message, error, stackTrace);
 
   @override
   void info(String message, [Object? error, StackTrace? stackTrace]) =>
-      _log(ConfigDirectorLogLevel.info, 800, message, error, stackTrace);
+      _log(ConfigDirectorLogLevel.info, message, error, stackTrace);
 
   @override
   void warn(String message, [Object? error, StackTrace? stackTrace]) =>
-      _log(ConfigDirectorLogLevel.warn, 900, message, error, stackTrace);
+      _log(ConfigDirectorLogLevel.warn, message, error, stackTrace);
 
   @override
   void error(String message, [Object? error, StackTrace? stackTrace]) =>
-      _log(ConfigDirectorLogLevel.error, 1000, message, error, stackTrace);
+      _log(ConfigDirectorLogLevel.error, message, error, stackTrace);
 
   void _log(
     ConfigDirectorLogLevel messageLevel,
-    int developerLevel,
     String message,
     Object? error,
     StackTrace? stackTrace,
@@ -73,12 +83,17 @@ final class ConsoleLogger implements ConfigDirectorLogger {
       return;
     }
 
-    developer.log(
-      _decorate(message),
-      name: 'ConfigDirector',
-      level: developerLevel,
-      error: error,
-      stackTrace: stackTrace,
+    final timestamp = DateTime.now().toIso8601String();
+    final buffer = StringBuffer(
+      '$timestamp [${messageLevel.label}] ${_decorate(message)}',
     );
+    if (error != null) {
+      buffer.write('\n$error');
+    }
+    if (stackTrace != null) {
+      buffer.write('\n$stackTrace');
+    }
+
+    debugPrint(buffer.toString());
   }
 }
