@@ -9,7 +9,7 @@ import 'default_config_director_client.dart';
 /// application startup.
 ///
 /// ```dart
-/// final client = ConfigDirectorClient('YOUR-SDK-KEY');
+/// final client = ConfigDirectorClient(clientSdkKey: 'YOUR-SDK-KEY');
 /// await client.initialize(const ConfigDirectorContext(id: 'user-123'));
 /// final darkMode = client.getValue('dark-mode', false);
 /// ```
