@@ -10,10 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # The SDK is not published yet, so the `dependency_overrides` section below
-  # points pub at the package this app lives in. Once it is published, delete
-  # that section and this dependency resolves from pub.dev with nothing else to
-  # change here.
   configdirector_flutter_client_sdk: ^0.1.0
   cupertino_icons: ^1.0.8
 
@@ -21,12 +17,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ">=4.0.0 <7.0.0"
-
-# Resolves `configdirector_flutter_client_sdk` from this repository rather than
-# from pub.dev. Delete this section once the package is published.
-dependency_overrides:
-  configdirector_flutter_client_sdk:
-    path: ../
 
 flutter:
   uses-material-design: true

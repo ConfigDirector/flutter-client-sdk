@@ -31,29 +31,20 @@ alongside its key.
 
 ## What to look at
 
-| File | What it shows |
-| --- | --- |
-| [lib/src/app.dart](lib/src/app.dart) | Creating, initializing and disposing a single client for the whole app |
-| [lib/src/config_director_scope.dart](lib/src/config_director_scope.dart) | Handing that client to the widget tree with an `InheritedWidget` |
-| [lib/src/config_value.dart](lib/src/config_value.dart) | Rebuilding on config changes with `watch` and a `StreamBuilder` |
-| [lib/src/flags_screen.dart](lib/src/flags_screen.dart) | Reading `bool`, `int`, `String` and JSON configs, and the client's ready event |
-| [lib/src/context_screen.dart](lib/src/context_screen.dart) | Re-evaluating every config against a new context with `updateContext` |
+| File                                                                     | What it shows                                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| [lib/src/app.dart](lib/src/app.dart)                                     | Creating, initializing and disposing a single client for the whole app         |
+| [lib/src/config_director_scope.dart](lib/src/config_director_scope.dart) | Handing that client to the widget tree with an `InheritedWidget`               |
+| [lib/src/config_value.dart](lib/src/config_value.dart)                   | Rebuilding on config changes with `watch` and a `StreamBuilder`                |
+| [lib/src/flags_screen.dart](lib/src/flags_screen.dart)                   | Reading `bool`, `int`, `String` and JSON configs, and the client's ready event |
+| [lib/src/context_screen.dart](lib/src/context_screen.dart)               | Re-evaluating every config against a new context with `updateContext`          |
 
 ## Using the SDK in your own app
-
-This app resolves the SDK from the repository it lives in:
 
 ```yaml
 dependencies:
   configdirector_flutter_client_sdk: ^0.1.0
-
-# Delete this once the package is published to pub.dev.
-dependency_overrides:
-  configdirector_flutter_client_sdk:
-    path: ../
 ```
-
-In your own app you only need the `dependencies` entry.
 
 ## Tests
 
