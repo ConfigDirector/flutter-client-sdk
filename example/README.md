@@ -1,8 +1,11 @@
 # ConfigDirector Flutter sample app
 
-A two-tab Flutter app showing how to use the ConfigDirector client SDK: one tab
-reads configs and re-renders as they change, the other edits the context those
-configs are evaluated against.
+A single-screen Flutter app showing how to use the ConfigDirector client SDK: it
+reads a handful of configs and re-renders as their values change.
+
+It all lives in [lib/main.dart](lib/main.dart), which is also the only file
+pub.dev shows on the package's
+[Example tab](https://pub.dev/packages/configdirector_flutter_client_sdk/example).
 
 ## Running it
 
@@ -19,11 +22,17 @@ configs are evaluated against.
    flutter run --dart-define-from-file=env.json
    ```
 
-`env.json` is git-ignored. The key is read at build time through
-`String.fromEnvironment`, so it never has to be committed — see
+`env.json` is git-ignored. Everything in it is read at build time through
+`String.fromEnvironment`, so nothing has to be committed — see
 [lib/main.dart](lib/main.dart).
 
-The Flags tab reads the keys of the ConfigDirector sample project
+Alongside the key, `env.json` can carry the context the configs are evaluated
+against: `CONFIGDIRECTOR_USER_ID`, `CONFIGDIRECTOR_USER_NAME` and
+`CONFIGDIRECTOR_USER_ROLE` (sent as the `role` trait). Leave them empty and the
+configs are evaluated without a context; change them and re-run to see targeting
+rules take effect.
+
+The app reads the keys of the ConfigDirector sample project
 (`temporary-feature-flag`, `permanent-kill-switch`, `integer-config`,
 `day-of-the-week-config`, `json-value-config`). Pointing the app at a project
 without them is fine: each config falls back to the default value passed
@@ -31,13 +40,16 @@ alongside its key.
 
 ## What to look at
 
-| File                                                                     | What it shows                                                                  |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| [lib/src/app.dart](lib/src/app.dart)                                     | Creating, initializing and disposing a single client for the whole app         |
-| [lib/src/config_director_scope.dart](lib/src/config_director_scope.dart) | Handing that client to the widget tree with an `InheritedWidget`               |
-| [lib/src/config_value.dart](lib/src/config_value.dart)                   | Rebuilding on config changes with `watch` and a `StreamBuilder`                |
-| [lib/src/flags_screen.dart](lib/src/flags_screen.dart)                   | Reading `bool`, `int`, `String` and JSON configs, and the client's ready event |
-| [lib/src/context_screen.dart](lib/src/context_screen.dart)               | Re-evaluating every config against a new context with `updateContext`          |
+Reading [lib/main.dart](lib/main.dart) top to bottom, in order:
+
+| Part                       | What it shows                                                          |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `SampleApp`                | Creating, initializing and disposing a single client for the whole app |
+| `_contextFromEnvironment`  | Passing a targeting context to `initialize`                            |
+| `ConfigDirectorScope`      | Handing that client to the widget tree with an `InheritedWidget`       |
+| `ConfigValue`              | Rebuilding on config changes with `watch` and a `StreamBuilder`        |
+| `HomePage`                 | Reading `bool`, `int`, `String` and JSON configs                       |
+| `_ReadyIndicator`          | Following the connection with the client's ready event                 |
 
 ## Using the SDK in your own app
 
@@ -52,6 +64,6 @@ dependencies:
 flutter test
 ```
 
-Both screens are tested against
-[a stub client](test/support/fake_client.dart) rather than a real connection,
-which is also how you would keep your own widget tests off the network.
+The screen is tested against [a stub client](test/support/fake_client.dart)
+rather than a real connection, which is also how you would keep your own widget
+tests off the network.
