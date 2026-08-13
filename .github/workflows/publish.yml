@@ -29,10 +29,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  # Must match build.yml, so a release runs the SDK the branch was gated on.
-  FLUTTER_VERSION: 3.44.8
-
 jobs:
   publish:
     name: publish
@@ -46,7 +42,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version-file: .fvmrc
           channel: any
           cache: true
 

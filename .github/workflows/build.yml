@@ -12,10 +12,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  # Pinned, publish.yml pins the same version.
-  FLUTTER_VERSION: 3.44.8
-
 jobs:
   analyze:
     name: analyze
@@ -23,9 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # .fvmrc is the pin for both CI and workstations; `dart format` output
+      # changes between SDK releases, so it must not float.
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version-file: .fvmrc
           channel: any
           cache: true
 
