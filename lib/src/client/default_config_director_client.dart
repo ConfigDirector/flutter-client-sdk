@@ -11,6 +11,7 @@ import '../lifecycle.dart';
 import '../logger.dart';
 import '../platform/app_info.dart';
 import '../platform/user_agent.dart';
+import '../telemetry/event_reporter.dart';
 import '../telemetry/reporter_factory.dart';
 import '../telemetry/telemetry_client.dart';
 import '../telemetry/telemetry_event_collector.dart';
@@ -67,6 +68,10 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           reporter: createEventReporter(
             sdkKey: clientSdkKey,
             baseUrl: baseUrl,
+            metaContext: const TelemetryMetaContext(
+              sdkName: constants.sdkName,
+              sdkVersion: constants.sdkVersion,
+            ),
             logger: _logger,
           ),
         );

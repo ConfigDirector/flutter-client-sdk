@@ -7,5 +7,11 @@ import 'isolate_event_reporter.dart';
 EventReporter createEventReporter({
   required String sdkKey,
   required Uri baseUrl,
+  required TelemetryMetaContext metaContext,
   required ConfigDirectorLogger logger,
-}) => IsolateEventReporter(sdkKey: sdkKey, baseUrl: baseUrl, logger: logger);
+}) => IsolateEventReporter(
+  sdkKey: sdkKey,
+  baseUrl: baseUrl,
+  metaContext: metaContext,
+  logger: logger,
+);

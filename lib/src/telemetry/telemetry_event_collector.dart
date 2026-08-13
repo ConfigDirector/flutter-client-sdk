@@ -24,12 +24,9 @@ final class TelemetryEventCollector implements TelemetryClient {
   }) : _reporter = reporter,
        _logger = logger,
        _queue = EventQueue(limit: eventQueueLimit) {
-    // The first flush comes early so that an app that is opened briefly still
-    // reports what it evaluated.
     _flushTimer = Timer(initialFlushDelay, _onFlushTimer);
   }
 
-  /// How long the collector waits between flushes.
   final Duration flushInterval;
 
   final EventReporter _reporter;
@@ -56,10 +53,6 @@ final class TelemetryEventCollector implements TelemetryClient {
       return;
     }
 
-    // Events collected until now belong to the context they were evaluated
-    // against, so they are taken out of the queue before the new context takes
-    // over. Both happen before this returns, leaving no window in which an
-    // evaluation could be attributed to the wrong context.
     _flushTimer?.cancel();
     final flush = _flush();
     _context = context;
@@ -104,16 +97,8 @@ final class TelemetryEventCollector implements TelemetryClient {
     _flushTimer = Timer(flushInterval, _onFlushTimer);
   }
 
-  /// Empties the queue into a report and sends it behind any report already in
-  /// flight.
-  ///
-  /// The interval, a context update, the app being backgrounded, and [close]
-  /// can all ask for a flush at any time, so the queue is emptied here and now,
-  /// synchronously, and only sending waits its turn.
   Future<void> _flush() {
     if (_queue.isEmpty) {
-      // Nothing new to send, but a report may still be on its way out, and
-      // callers such as [close] have to wait for it.
       return _flushChain;
     }
 

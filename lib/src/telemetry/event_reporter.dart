@@ -11,22 +11,28 @@ import 'event_aggregator.dart';
 import 'event_queue.dart';
 import 'telemetry_events.dart';
 
-/// One batch of collected events, handed to an [EventReporter] to be turned
-/// into a report and sent.
-///
-/// Instances cross an isolate boundary, so they hold only deeply immutable
-/// values.
+@immutable
+final class TelemetryMetaContext {
+  const TelemetryMetaContext({required this.sdkName, required this.sdkVersion});
+
+  final String sdkName;
+  final String sdkVersion;
+
+  Map<String, Object?> toJson() => {
+    'sdkName': sdkName,
+    'sdkVersion': sdkVersion,
+  };
+}
+
 @immutable
 final class EventReportRequest {
   const EventReportRequest({required this.snapshot, this.context});
 
   final EventQueueSnapshot<EvaluatedConfigEvent> snapshot;
 
-  /// The context the events were evaluated against.
   final ConfigDirectorContext? context;
 }
 
-/// The outcome of reporting a batch of events.
 @immutable
 final class ReporterResponse {
   const ReporterResponse({required this.success, required this.fatalError});
@@ -37,36 +43,26 @@ final class ReporterResponse {
 
   final bool success;
 
-  /// Whether the failure will repeat for every subsequent report, such as an
-  /// invalid SDK key. Collection stops when it does.
   final bool fatalError;
 }
 
-/// Sends collected events to ConfigDirector.
 abstract interface class EventReporter {
-  /// Prepares and sends the report for [request].
   Future<ReporterResponse> report(EventReportRequest request);
 
-  /// Releases every resource the reporter holds.
   Future<void> close();
 }
 
-/// The [EventReporter] that builds the report and posts it to the telemetry
-/// endpoint.
-///
-/// Preparing a report hashes every value too large to send inline and encodes
-/// the whole payload, so on platforms that support isolates this runs inside
-/// the telemetry isolate rather than on the main one. See
-/// `isolate_event_reporter.dart`.
 final class HttpEventReporter implements EventReporter {
   HttpEventReporter({
     required String sdkKey,
     required Uri baseUrl,
+    required TelemetryMetaContext metaContext,
     required ConfigDirectorLogger logger,
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 5),
   }) : _sdkKey = sdkKey,
        _url = baseUrl.resolve('client/telemetry/v1'),
+       _metaContext = metaContext,
        _logger = logger,
        _timeout = timeout,
        _httpClient = httpClient ?? http.Client(),
@@ -74,6 +70,7 @@ final class HttpEventReporter implements EventReporter {
 
   final String _sdkKey;
   final Uri _url;
+  final TelemetryMetaContext _metaContext;
   final ConfigDirectorLogger _logger;
   final Duration _timeout;
   final http.Client _httpClient;
@@ -106,6 +103,7 @@ final class HttpEventReporter implements EventReporter {
     final response = await _send(
       jsonEncode({
         'clientSdkKey': _sdkKey,
+        'metaContext': _metaContext.toJson(),
         if (request.context != null) 'context': request.context!.toJson(),
         'discreteEvents': const <String, Object?>{},
         'aggregatedEvents': {

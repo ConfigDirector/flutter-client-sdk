@@ -63,6 +63,10 @@ void main() {
   }) => HttpEventReporter(
     sdkKey: 'a-client-sdk-key',
     baseUrl: Uri.parse('https://sdk.example.com'),
+    metaContext: const TelemetryMetaContext(
+      sdkName: 'reporter-tests',
+      sdkVersion: '1.0.1',
+    ),
     logger: logger,
     timeout: timeout,
     httpClient: MockClient((request) async {
@@ -117,6 +121,7 @@ void main() {
       expect(bodyOf(requests.single), {
         'clientSdkKey': 'a-client-sdk-key',
         'context': {'id': 'user-123', 'name': 'Ada'},
+        'metaContext': {'sdkName': 'reporter-tests', 'sdkVersion': '1.0.1'},
         'discreteEvents': <String, Object?>{},
         'aggregatedEvents': {
           'evaluatedConfig': [

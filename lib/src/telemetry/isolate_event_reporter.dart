@@ -20,13 +20,16 @@ final class IsolateEventReporter implements EventReporter {
   IsolateEventReporter({
     required String sdkKey,
     required Uri baseUrl,
+    required TelemetryMetaContext metaContext,
     required ConfigDirectorLogger logger,
   }) : _sdkKey = sdkKey,
        _baseUrl = baseUrl,
+       _metaContext = metaContext,
        _logger = logger;
 
   final String _sdkKey;
   final Uri _baseUrl;
+  final TelemetryMetaContext _metaContext;
   final ConfigDirectorLogger _logger;
 
   final Map<int, Completer<ReporterResponse>> _pendingRequests = {};
@@ -87,6 +90,7 @@ final class IsolateEventReporter implements EventReporter {
         _IsolateInit(
           responsePort: fromIsolate.sendPort,
           sdkKey: _sdkKey,
+          metaContext: _metaContext,
           baseUrl: _baseUrl.toString(),
         ),
         onError: fromIsolate.sendPort,
@@ -169,6 +173,7 @@ final class IsolateEventReporter implements EventReporter {
   EventReporter _localFallback() => _localReporter ??= HttpEventReporter(
     sdkKey: _sdkKey,
     baseUrl: _baseUrl,
+    metaContext: _metaContext,
     logger: _logger,
   );
 
@@ -203,6 +208,7 @@ void _telemetryIsolateMain(_IsolateInit init) {
   final requests = ReceivePort();
   final reporter = HttpEventReporter(
     sdkKey: init.sdkKey,
+    metaContext: init.metaContext,
     baseUrl: Uri.parse(init.baseUrl),
     logger: _IsolateLogger(init.responsePort),
   );
@@ -264,11 +270,13 @@ final class _IsolateInit {
     required this.responsePort,
     required this.sdkKey,
     required this.baseUrl,
+    required this.metaContext,
   });
 
   final SendPort responsePort;
   final String sdkKey;
   final String baseUrl;
+  final TelemetryMetaContext metaContext;
 }
 
 final class _ReportMessage {

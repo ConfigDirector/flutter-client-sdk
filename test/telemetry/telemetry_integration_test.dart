@@ -7,6 +7,8 @@ import 'dart:io';
 
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/constants.dart'
+    as constants;
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,6 +86,10 @@ void main() {
 
     expect(report['clientSdkKey'], 'a-client-sdk-key');
     expect(report['context'], {'id': 'user-123'});
+    expect(report['metaContext'], {
+      'sdkName': constants.sdkName,
+      'sdkVersion': constants.sdkVersion,
+    });
     expect(report['droppedEvents'], {'evaluatedConfig': 0});
 
     final aggregated =

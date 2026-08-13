@@ -65,6 +65,10 @@ void main() {
   IsolateEventReporter createReporter() => IsolateEventReporter(
     sdkKey: 'a-client-sdk-key',
     baseUrl: Uri.parse('http://${server.address.host}:${server.port}'),
+    metaContext: const TelemetryMetaContext(
+      sdkName: 'isolate-reporter-tests',
+      sdkVersion: '1.2.3',
+    ),
     logger: logger,
   );
 
@@ -80,6 +84,18 @@ void main() {
     expect(response.fatalError, isFalse);
     expect(received.single['clientSdkKey'], 'a-client-sdk-key');
     expect(received.single['context'], {'id': 'user-123'});
+  });
+
+  test('reports the SDK name and version it was given', () async {
+    final reporter = createReporter();
+    addTearDown(reporter.close);
+
+    await reporter.report(requestOf());
+
+    expect(received.single['metaContext'], {
+      'sdkName': 'isolate-reporter-tests',
+      'sdkVersion': '1.2.3',
+    });
   });
 
   test('keeps the isolate for the reports that follow', () async {
