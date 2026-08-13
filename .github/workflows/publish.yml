@@ -29,30 +29,25 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Must match build.yml, so a release runs the SDK the branch was gated on.
+  FLUTTER_VERSION: 3.44.8
+
 jobs:
   publish:
     name: publish
     runs-on: ubuntu-latest
-    # Must match the environment configured on pub.dev under
-    # Admin > Automated publishing, or pub.dev rejects the token. Leave both
-    # unset to publish without one; setting it allows required reviewers or a
-    # wait timer to gate the upload.
     environment: pub.dev
     permissions:
       contents: read
-      # Required for pub.dev to accept the GitHub-issued OIDC token.
       id-token: write
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: any
           cache: true
 
       - name: Install dependencies
@@ -89,9 +84,6 @@ jobs:
             echo "::error::No CHANGELOG.md heading found for $version."
             exit 1
           fi
-
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed --language-version=latest .
 
       - name: Analyze
         run: flutter analyze --fatal-infos

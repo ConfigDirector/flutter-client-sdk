@@ -12,6 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # Pinned, publish.yml pins the same version.
+  FLUTTER_VERSION: 3.44.8
+
 jobs:
   analyze:
     name: analyze
@@ -19,18 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Dart
-        uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: any
           cache: true
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed --language-version=latest .
 
       - name: Analyze
         run: flutter analyze --fatal-infos
