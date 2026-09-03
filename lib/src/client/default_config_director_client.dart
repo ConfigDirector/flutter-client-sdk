@@ -46,8 +46,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   DefaultConfigDirectorClient(
     String clientSdkKey, {
     ConfigDirectorClientOptions? options,
-    // The parameters below are internal seams for testing and are not part of
-    // the supported API surface.
     http.Client? httpClient,
     TransportFactory? transportFactory,
     AppLifecycleWatcher? lifecycleWatcher,
@@ -97,8 +95,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         _createTransport(connection.mode, transportOptions);
     _configSetSubscription = _transport.configSets.listen(_handleConfigSet);
 
-    // The lifecycle is always worth following: telemetry is reported when the
-    // app leaves the foreground even when the connection is left alone.
     _pauseWhileBackgrounded = connection.pauseWhileBackgrounded;
     _lifecycleWatcher =
         lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(_logger);
@@ -137,7 +133,9 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   ConfigSet? _configSet;
   ConfigDirectorContext? _currentContext;
+  ConfigDirectorContext? _requestedContext;
   Completer<void>? _readyCompleter;
+  int _connectionGeneration = 0;
   ClientConnectAction _pendingAction = ClientConnectAction.initialization;
   bool _ready = false;
   bool _initializing = false;
@@ -243,7 +241,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   @override
   Future<void> resumeNetwork() =>
-      _connect(_currentContext, ClientConnectAction.networkResume);
+      _connect(_requestedContext, ClientConnectAction.networkResume);
 
   @override
   void dispose() {
@@ -281,32 +279,34 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     ConfigDirectorContext? context,
     ClientConnectAction action,
   ) async {
+    final generation = ++_connectionGeneration;
     try {
       _ready = false;
       _hasConnected = true;
       _pendingAction = action;
+      _requestedContext = context;
       final readyCompleter = Completer<void>();
       _readyCompleter = readyCompleter;
 
       final stopwatch = Stopwatch()..start();
-      // Only the first connection waits on this; afterwards it has completed.
       await _appInfoResolved;
       await _transport.connect(
         context ?? const ConfigDirectorContext(),
         _timeout,
       );
+      if (generation != _connectionGeneration) {
+        return;
+      }
       _currentContext = context;
       unawaited(_telemetry.updateContext(context));
       _emit(_contextUpdated, ContextUpdatedEvent(context));
 
-      // The transport may have spent part of the budget connecting; only the
-      // remainder is left to wait for the first config set.
       final remaining = _timeout - stopwatch.elapsed;
       if (remaining > Duration.zero) {
         await readyCompleter.future.timeout(remaining, onTimeout: () {});
       }
 
-      if (!_ready) {
+      if (!_ready && generation == _connectionGeneration) {
         _logger.warn(
           '[ConfigDirectorClient] Timed out waiting for ${action.description} after '
           '${_timeout.inMilliseconds}ms. The client will continue to retry as long as no '
@@ -486,10 +486,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       case AppLifecycleState.detached:
         unawaited(_telemetry.flush());
         _pauseWhileBackgroundedIfEnabled();
-      // The app is leaving the foreground and may not come back, so telemetry
-      // goes out at the first sign of it. The connection is not dropped over
-      // it: `hidden` and `inactive` also cover transient interruptions, such as
-      // the app switcher or an incoming call.
       case AppLifecycleState.hidden:
         unawaited(_telemetry.flush());
       case AppLifecycleState.inactive:
@@ -504,7 +500,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   }
 
   void _pauseWhileBackgroundedIfEnabled() {
-    // Nothing to pause until the application has connected once.
     if (!_pauseWhileBackgrounded ||
         !_hasConnected ||
         _pausedWhileBackgrounded) {

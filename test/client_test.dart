@@ -679,6 +679,33 @@ void main() {
       ]);
     });
 
+    test('an update overtaken by a newer one does not take effect', () async {
+      final client = autoDispose(createClient());
+      const slow = ConfigDirectorContext(id: 'user-slow');
+      const fast = ConfigDirectorContext(id: 'user-fast');
+      final contexts = <ConfigDirectorContext?>[];
+      client.onContextUpdated.listen((event) => contexts.add(event.context));
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      transport.holdConnects = true;
+      final slowUpdate = client.updateContext(slow);
+      final fastUpdate = client.updateContext(fast);
+      await pumpEventQueue();
+      transport.heldConnects[1].complete();
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      transport.heldConnects[0].complete();
+      await Future.wait([slowUpdate, fastUpdate]);
+      await pumpEventQueue();
+
+      expect(client.context, fast);
+      expect(telemetry.contextUpdates.last, fast);
+      expect(contexts, [null, fast]);
+    });
+
     test('re-evaluates watched configs against the new context', () async {
       final client = autoDispose(createClient());
       final values = <String>[];
@@ -741,6 +768,27 @@ void main() {
       await resume;
 
       expect(transport.connectCalls.last.context, context);
+      expect(client.isReady, isTrue);
+    });
+
+    test('resuming after a pause during initialization keeps the requested '
+        'context', () async {
+      final client = autoDispose(createClient());
+      const context = ConfigDirectorContext(id: 'user-1');
+
+      transport.holdConnects = true;
+      final initialization = client.initialize(context);
+      await pumpEventQueue();
+      client.pauseNetwork();
+      final resume = client.resumeNetwork();
+      await pumpEventQueue();
+      transport.heldConnects[1].complete();
+      transport.emitConfigSet(configSet(configs: const {}));
+      transport.heldConnects[0].complete();
+      await Future.wait([initialization, resume]);
+
+      expect(transport.connectCalls.last.context, context);
+      expect(client.context, context);
       expect(client.isReady, isTrue);
     });
 

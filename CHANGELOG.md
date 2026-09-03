@@ -14,6 +14,10 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   surfacing as an uncaught `TypeError`. The same response from the polling endpoint is reported
   as a `ConfigDirectorConnectionError`.
 - A server-sent `retry:` field too large for an integer is ignored instead of throwing.
+- When `updateContext` is called again before the previous update has connected, the newer
+  context wins: `context`, `onContextUpdated`, and telemetry attribution no longer end up on the
+  older one. Resuming the network after a pause that interrupted `initialize` reconnects with the
+  context that was passed to `initialize`.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

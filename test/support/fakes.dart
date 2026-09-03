@@ -25,12 +25,22 @@ final class FakeTransport implements Transport {
   /// Delays [connect] before it completes, to exercise the connect timeout.
   Duration connectDelay = Duration.zero;
 
+  /// When set, every [connect] waits until its entry in [heldConnects] is
+  /// completed, so a test can decide the order in which connects finish.
+  bool holdConnects = false;
+  final List<Completer<void>> heldConnects = [];
+
   @override
   Stream<ConfigSet> get configSets => _configSets.stream;
 
   @override
   Future<void> connect(ConfigDirectorContext context, Duration timeout) async {
     connectCalls.add((context: context, timeout: timeout));
+    if (holdConnects) {
+      final held = Completer<void>();
+      heldConnects.add(held);
+      await held.future;
+    }
     if (connectDelay > Duration.zero) {
       await Future<void>.delayed(connectDelay);
     }
