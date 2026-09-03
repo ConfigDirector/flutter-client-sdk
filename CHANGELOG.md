@@ -23,6 +23,8 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   initial fetch no longer starts polling once that fetch completes.
 - Flushing telemetry twice in quick succession, which happens every time the app is
   backgrounded, no longer leaves an extra flush timer running for the life of the client.
+- Pausing the network while the streaming connection was still being established no longer
+  leaves that connection open in the background once the server answers.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

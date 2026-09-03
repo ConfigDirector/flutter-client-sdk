@@ -854,6 +854,62 @@ void main() {
           expect(source.readyState, ReadyState.open);
         },
       );
+
+      test('close() while connecting releases the late response', () async {
+        final body = StreamController<List<int>>();
+        final responseGate = Completer<void>();
+        final client = MockClient.streaming((request, bodyStream) async {
+          await responseGate.future;
+          return http.StreamedResponse(
+            body.stream,
+            200,
+            headers: {'content-type': 'text/event-stream'},
+          );
+        });
+        final source = EventSourceClient(
+          url: Uri.parse('http://localhost/sse'),
+          client: client,
+        );
+
+        source.connect();
+        await pumpEventQueue();
+        source.close();
+        responseGate.complete();
+        await pumpEventQueue();
+
+        expect(body.hasListener, isFalse);
+        expect(source.readyState, ReadyState.closed);
+        await body.close();
+      });
+
+      test('a failure from an attempt abandoned by close() leaves the next '
+          'connection open', () async {
+        var attempts = 0;
+        final firstAttemptFails = Completer<void>();
+        final client = MockClient.streaming((request, bodyStream) async {
+          attempts++;
+          if (attempts == 1) {
+            await firstAttemptFails.future;
+            throw const _RequestStub();
+          }
+          return http.StreamedResponse(_neverEndingStream(), 200);
+        });
+        final source = EventSourceClient(
+          url: Uri.parse('http://localhost/sse'),
+          client: client,
+        );
+
+        source.connect();
+        await pumpEventQueue();
+        source.close();
+        source.connect();
+        await _waitForState(source, ReadyState.open);
+        firstAttemptFails.complete();
+        await pumpEventQueue();
+
+        expect(source.readyState, ReadyState.open);
+        source.dispose();
+      });
     });
 
     group('dispose()', () {

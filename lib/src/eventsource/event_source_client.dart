@@ -8,9 +8,6 @@ import 'errors.dart';
 import 'event_source_parser.dart';
 import 'types.dart';
 
-// Identifies a single connection attempt so late-arriving results (headers
-// or stream events that resolve after EventSourceClient.close was called)
-// can be recognized and discarded.
 class _ConnectionToken {
   bool aborted = false;
 }
@@ -135,7 +132,6 @@ class EventSourceClient extends ChangeNotifier {
       await _handleResponse(response, token);
     } catch (error) {
       if (token.aborted) {
-        close();
         return;
       }
 
@@ -149,7 +145,7 @@ class EventSourceClient extends ChangeNotifier {
     _ConnectionToken token,
   ) async {
     if (token.aborted) {
-      unawaited(response.stream.drain());
+      unawaited(response.stream.listen(null).cancel());
       return;
     }
 
