@@ -36,8 +36,6 @@ final class StreamingTransport implements Transport {
   Future<void> connect(ConfigDirectorContext context, Duration timeout) async {
     _releaseEventSource();
 
-    // Completes when the stream is open, or with an error when the server
-    // rejects the connection in a way that retrying cannot fix.
     final connected = Completer<void>();
 
     final eventSource = EventSourceClient(
@@ -69,8 +67,6 @@ final class StreamingTransport implements Transport {
     eventSource.addListener(onReadyStateChanged);
     eventSource.connect();
 
-    // Give up waiting once the timeout elapses; the connection keeps retrying
-    // in the background unless it failed fatally.
     final timeoutTimer = Timer(timeout, () {
       if (!connected.isCompleted) {
         connected.complete();
@@ -127,10 +123,11 @@ final class StreamingTransport implements Transport {
       if (json is! Map<String, Object?>) {
         throw const FormatException('Expected a JSON object');
       }
+      final configSet = ConfigSet.fromJson(json);
       if (!_configSets.isClosed) {
-        _configSets.add(ConfigSet.fromJson(json));
+        _configSets.add(configSet);
       }
-    } on FormatException catch (error, stackTrace) {
+    } on Object catch (error, stackTrace) {
       _logger.error(
         '[StreamingTransport] Error parsing and dispatching config data update',
         error,

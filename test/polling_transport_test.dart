@@ -289,6 +289,35 @@ void main() {
     );
   });
 
+  test('reports a response whose fields have the wrong types', () async {
+    final transport = PollingTransport(
+      optionsWith(
+        respondWith([
+          http.Response(
+            configSetBody(
+              configs: {
+                'dark-mode': {'id': 1, 'key': 'dark-mode', 'type': 'boolean'},
+              },
+            ),
+            200,
+          ),
+        ]),
+      ),
+    );
+    addTearDown(transport.dispose);
+
+    await expectLater(
+      transport.connect(const ConfigDirectorContext(), _timeout),
+      throwsA(
+        isA<ConfigDirectorConnectionError>().having(
+          (error) => error.message,
+          'message',
+          contains('unexpected payload'),
+        ),
+      ),
+    );
+  });
+
   test('reports a timed out request', () async {
     final transport = PollingTransport(
       optionsWith(

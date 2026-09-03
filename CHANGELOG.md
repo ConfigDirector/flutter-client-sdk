@@ -10,6 +10,9 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 
 ### Fixed
 
+- A streaming update whose fields have unexpected types is logged and skipped instead of
+  surfacing as an uncaught `TypeError`. The same response from the polling endpoint is reported
+  as a `ConfigDirectorConnectionError`.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

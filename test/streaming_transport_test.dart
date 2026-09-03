@@ -151,6 +151,33 @@ void main() {
     },
   );
 
+  test('logs and skips a message whose fields have the wrong types', () async {
+    final transport = StreamingTransport(optionsWith(streamingClient()));
+    addTearDown(transport.dispose);
+
+    final configSets = <ConfigSet>[];
+    transport.configSets.listen(configSets.add);
+    await transport.connect(const ConfigDirectorContext(), _timeout);
+
+    sendEvent(
+      configSetBody(
+        configs: {
+          'dark-mode': {'id': 1, 'key': 'dark-mode', 'type': 'boolean'},
+        },
+      ),
+    );
+    sendEvent(configSetBody());
+    await pumpEventQueue();
+
+    expect(configSets.length, 1);
+    expect(
+      logger.messages.any(
+        (message) => message.contains('Error parsing and dispatching'),
+      ),
+      isTrue,
+    );
+  });
+
   test(
     'fails with an unrecoverable error when the server rejects the request',
     () async {

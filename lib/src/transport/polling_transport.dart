@@ -50,8 +50,6 @@ class PollingTransport implements Transport {
     try {
       await _fetchConfigs(context, timeout);
     } finally {
-      // An initial transient failure must not leave the client without a
-      // connection: keep polling unless the failure was unrecoverable.
       if (!_hasFatalError) {
         _schedulePolling(context, timeout);
       }
@@ -160,7 +158,14 @@ class PollingTransport implements Transport {
       );
     }
 
-    final configSet = ConfigSet.fromJson(json);
+    final ConfigSet configSet;
+    try {
+      configSet = ConfigSet.fromJson(json);
+    } on Object catch (error) {
+      throw ConfigDirectorConnectionError(
+        'The server responded with an unexpected payload: $error',
+      );
+    }
     _lastUpdateTimestamp = configSet.timestamp;
     if (!_configSets.isClosed) {
       _configSets.add(configSet);
