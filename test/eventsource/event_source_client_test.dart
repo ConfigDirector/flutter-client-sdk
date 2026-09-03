@@ -39,14 +39,12 @@ Future<void> _waitForState(EventSourceClient client, ReadyState state) {
   if (client.readyState == state) return Future<void>.value();
 
   final completer = Completer<void>();
-  void listener() {
-    if (client.readyState == state && !completer.isCompleted) {
+  final subscription = client.readyStates.listen((current) {
+    if (current == state && !completer.isCompleted) {
       completer.complete();
     }
-  }
-
-  client.addListener(listener);
-  return completer.future.whenComplete(() => client.removeListener(listener));
+  });
+  return completer.future.whenComplete(subscription.cancel);
 }
 
 class _RequestStub implements Exception {
@@ -150,8 +148,8 @@ void main() {
               return true;
             },
           );
-          source.addListener(() {
-            if (source.readyState == ReadyState.open) openCount++;
+          source.readyStates.listen((state) {
+            if (state == ReadyState.open) openCount++;
           });
           source.connect();
           await done.future;
@@ -290,6 +288,29 @@ void main() {
         expect(source.readyState, ReadyState.closed);
       });
 
+      test('readyStates emits every transition', () async {
+        final client = MockClient.streaming((request, bodyStream) async {
+          return http.StreamedResponse(_neverEndingStream(), 200);
+        });
+        final source = EventSourceClient(
+          url: Uri.parse('http://localhost/sse'),
+          client: client,
+        );
+        final states = <ReadyState>[];
+        source.readyStates.listen(states.add);
+
+        final opened = _waitForState(source, ReadyState.open);
+        source.connect();
+        await opened;
+        source.close();
+
+        expect(states, [
+          ReadyState.connecting,
+          ReadyState.open,
+          ReadyState.closed,
+        ]);
+      });
+
       test('returns to CLOSED after close()', () async {
         final client = MockClient.streaming((request, bodyStream) async {
           return http.StreamedResponse(_neverEndingStream(), 200);
@@ -319,8 +340,8 @@ void main() {
           client: client,
           shouldReconnect: (_) => false,
         );
-        source.addListener(() {
-          if (source.readyState == ReadyState.open) openedAtLeastOnce = true;
+        source.readyStates.listen((state) {
+          if (state == ReadyState.open) openedAtLeastOnce = true;
         });
         source.connect();
         await _waitForState(source, ReadyState.closed);
@@ -344,7 +365,7 @@ void main() {
           await openFuture;
 
           var notificationsAfterClose = 0;
-          source.addListener(() => notificationsAfterClose++);
+          source.readyStates.listen((_) => notificationsAfterClose++);
           source.close();
 
           await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -580,8 +601,8 @@ void main() {
               return true;
             },
           );
-          source.addListener(() {
-            if (source.readyState == ReadyState.open) openCount++;
+          source.readyStates.listen((state) {
+            if (state == ReadyState.open) openCount++;
           });
           source.connect();
           await done.future;

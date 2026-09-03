@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-
 import '../eventsource/eventsource.dart';
 import '../logger.dart';
 import '../types.dart';
@@ -29,7 +27,7 @@ final class StreamingTransport implements Transport {
   EventSourceClient? _eventSource;
   StreamSubscription<EventSourceMessage>? _messagesSubscription;
   StreamSubscription<Object>? _errorsSubscription;
-  VoidCallback? _readyStateListener;
+  StreamSubscription<ReadyState>? _readyStateSubscription;
 
   @override
   Stream<ConfigSet> get configSets => _configSets.stream;
@@ -58,15 +56,12 @@ final class StreamingTransport implements Transport {
       (error) => _logger.debug('[StreamingTransport] Error', error),
     );
 
-    void onReadyStateChanged() {
-      if (eventSource.readyState == ReadyState.open && !connected.isCompleted) {
+    _readyStateSubscription = eventSource.readyStates.listen((state) {
+      if (state == ReadyState.open && !connected.isCompleted) {
         _logger.debug('[StreamingTransport] Connected');
         connected.complete();
       }
-    }
-
-    _readyStateListener = onReadyStateChanged;
-    eventSource.addListener(onReadyStateChanged);
+    });
     eventSource.connect();
 
     final timeoutTimer = Timer(timeout, () {
@@ -149,13 +144,10 @@ final class StreamingTransport implements Transport {
       return;
     }
 
-    final listener = _readyStateListener;
-    if (listener != null) {
-      eventSource.removeListener(listener);
-      _readyStateListener = null;
-    }
+    unawaited(_readyStateSubscription?.cancel());
     unawaited(_messagesSubscription?.cancel());
     unawaited(_errorsSubscription?.cancel());
+    _readyStateSubscription = null;
     _messagesSubscription = null;
     _errorsSubscription = null;
 

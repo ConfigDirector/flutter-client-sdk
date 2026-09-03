@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'errors.dart';
@@ -12,7 +11,7 @@ class _ConnectionToken {
   bool aborted = false;
 }
 
-class EventSourceClient extends ChangeNotifier {
+class EventSourceClient {
   final Uri url;
   final String method;
   final String? body;
@@ -38,6 +37,9 @@ class EventSourceClient extends ChangeNotifier {
       StreamController.broadcast();
   final StreamController<String> _comments = StreamController.broadcast();
   final StreamController<Object> _errors = StreamController.broadcast();
+  final StreamController<ReadyState> _readyStates = StreamController.broadcast(
+    sync: true,
+  );
 
   EventSourceClient({
     required this.url,
@@ -63,6 +65,8 @@ class EventSourceClient extends ChangeNotifier {
       state.serverReconnectionTime;
 
   ReadyState get readyState => _readyState;
+
+  Stream<ReadyState> get readyStates => _readyStates.stream;
 
   String? get lastEventId => _lastEventId;
 
@@ -96,7 +100,6 @@ class EventSourceClient extends ChangeNotifier {
     }
   }
 
-  @override
   void dispose() {
     if (_disposed) {
       return;
@@ -107,11 +110,10 @@ class EventSourceClient extends ChangeNotifier {
     unawaited(_messages.close());
     unawaited(_comments.close());
     unawaited(_errors.close());
+    unawaited(_readyStates.close());
     if (_ownsClient) {
       _client.close();
     }
-
-    super.dispose();
   }
 
   Future<void> _initiateConnection() async {
@@ -291,7 +293,7 @@ class EventSourceClient extends ChangeNotifier {
     }
     _readyState = state;
     if (!_disposed) {
-      notifyListeners();
+      _readyStates.add(state);
     }
   }
 }
