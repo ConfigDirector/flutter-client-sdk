@@ -613,6 +613,40 @@ void main() {
       await subscription.cancel();
     });
 
+    test('does not re-emit an unchanged JSON document', () async {
+      final client = autoDispose(createClient());
+      final values = <Map<String, Object?>>[];
+      final subscription = client
+          .watch('layout', <String, Object?>{})
+          .listen(values.add);
+
+      final initialization = client.initialize();
+      for (var i = 0; i < 3; i++) {
+        transport.emitConfigSet(
+          configSet(
+            configs: {
+              'layout': configState(
+                'layout',
+                ConfigType.json,
+                '{"columns": 2, "tags": ["a", "b"]}',
+              ),
+            },
+          ),
+        );
+      }
+      await initialization;
+      await pumpEventQueue();
+
+      expect(values, [
+        <String, Object?>{},
+        {
+          'columns': 2,
+          'tags': ['a', 'b'],
+        },
+      ]);
+      await subscription.cancel();
+    });
+
     test('falls back to the default when a full set drops the key', () async {
       final client = autoDispose(createClient());
       final values = <bool>[];

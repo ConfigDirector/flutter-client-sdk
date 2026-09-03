@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
@@ -189,7 +190,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         return;
       }
       final value = getValue(configKey, defaultValue);
-      if (value == lastEmitted) {
+      if (const DeepCollectionEquality().equals(value, lastEmitted)) {
         return;
       }
       lastEmitted = value;

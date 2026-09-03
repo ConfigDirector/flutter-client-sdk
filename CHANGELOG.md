@@ -30,6 +30,8 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   `initialize` give up on the first config set early.
 - `isInitializing` returns to `false` once `initialize` completes, including when the connection
   failed or timed out. It used to stay `true` forever in those cases.
+- A `watch` stream of a JSON config no longer re-emits the same document on every update; only
+  a document whose content changed is emitted.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.
