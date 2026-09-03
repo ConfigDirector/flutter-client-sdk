@@ -12,23 +12,18 @@ abstract interface class AppLifecycleWatcher {
   void stop();
 }
 
-/// The default [AppLifecycleWatcher], backed by [WidgetsBinding].
-final class WidgetsBindingLifecycleWatcher
-    with WidgetsBindingObserver
-    implements AppLifecycleWatcher {
+/// The default [AppLifecycleWatcher], backed by an [AppLifecycleListener].
+final class WidgetsBindingLifecycleWatcher implements AppLifecycleWatcher {
   WidgetsBindingLifecycleWatcher(this._logger);
 
   final ConfigDirectorLogger _logger;
 
-  void Function(AppLifecycleState state)? _onStateChanged;
-  WidgetsBinding? _binding;
+  AppLifecycleListener? _listener;
 
   @override
   void start(void Function(AppLifecycleState state) onStateChanged) {
-    _onStateChanged = onStateChanged;
-
     try {
-      _binding = WidgetsBinding.instance..addObserver(this);
+      _listener = AppLifecycleListener(onStateChange: onStateChanged);
     } on Object catch (error) {
       _logger.warn(
         '[ConfigDirectorClient] The widgets binding is not initialized, so the '
@@ -44,12 +39,7 @@ final class WidgetsBindingLifecycleWatcher
 
   @override
   void stop() {
-    _binding?.removeObserver(this);
-    _binding = null;
-    _onStateChanged = null;
+    _listener?.dispose();
+    _listener = null;
   }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) =>
-      _onStateChanged?.call(state);
 }
