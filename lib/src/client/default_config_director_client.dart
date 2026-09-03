@@ -372,13 +372,13 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   void _handleConfigSet(ConfigSet configSet) {
     final keys = configSet.configs.keys.toList(growable: false);
     final current = _configSet;
-    _configSet = current == null || configSet.kind == ConfigSetKind.full
-        ? configSet
-        : current.mergedWith(configSet);
+    final isFull = current == null || configSet.kind == ConfigSetKind.full;
+    _configSet = isFull ? configSet : current.mergedWith(configSet);
 
     _markReady();
     _emit(_configsUpdated, ConfigsUpdatedEvent(keys));
-    for (final key in keys) {
+    final affected = isFull ? _watchers.keys.toList(growable: false) : keys;
+    for (final key in affected) {
       for (final watcher in _watchers[key] ?? const <_ConfigWatcher>[]) {
         watcher.reevaluate();
       }

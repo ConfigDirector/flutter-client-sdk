@@ -8,6 +8,12 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+### Fixed
+
+- A `watch` stream now falls back to its default when a full config update no longer carries its
+  config. It used to keep yielding the last value it had seen while `getValue` already returned
+  the default.
+
 ## [0.10.0] - 2026-08-13
 
 ### Changed

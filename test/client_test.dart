@@ -569,6 +569,36 @@ void main() {
       await subscription.cancel();
     });
 
+    test('falls back to the default when a full set drops the key', () async {
+      final client = autoDispose(createClient());
+      final values = <bool>[];
+      final subscription = client.watch('dark-mode', false).listen(values.add);
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+          },
+        ),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'greeting': configState('greeting', ConfigType.string, 'bye'),
+          },
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(values, [false, true, false]);
+      expect(client.getValue('dark-mode', false), isFalse);
+      await subscription.cancel();
+    });
+
     test('stops emitting once the subscription is cancelled', () async {
       final client = autoDispose(createClient());
       final values = <bool>[];
