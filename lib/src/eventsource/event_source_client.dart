@@ -195,7 +195,9 @@ class EventSourceClient {
     _scheduleReconnect(
       token,
       status: status,
-      error: const StreamClosedError('The server response stream was closed'),
+      error: const StreamClosedException(
+        'The server response stream was closed',
+      ),
     );
   }
 
@@ -277,7 +279,7 @@ class EventSourceClient {
     if (delay < const Duration(milliseconds: 1) ||
         delay > const Duration(hours: 1)) {
       _errors.add(
-        ValueOutOfRangeError(
+        ValueOutOfRangeException(
           'The calculated reconnect delay is out of range: $delay. Defaulting to $_serverReconnectionTime',
         ),
       );

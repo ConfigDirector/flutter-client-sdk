@@ -54,7 +54,7 @@ class PollingTransport implements Transport {
 
     try {
       await _fetchConfigs(context, timeout);
-    } on ConfigDirectorConnectionError catch (error, stackTrace) {
+    } on ConfigDirectorConnectionException catch (error, stackTrace) {
       if (_hasFatalError) {
         _logger.error(
           '[PollingTransport] The initial fetch failed with an unrecoverable '
@@ -121,11 +121,11 @@ class PollingTransport implements Transport {
           )
           .timeout(timeout);
     } on TimeoutException {
-      throw ConfigDirectorConnectionError(
+      throw ConfigDirectorConnectionException(
         'Connection timed out after ${timeout.inMilliseconds}ms.',
       );
     } on Object catch (error) {
-      throw ConfigDirectorConnectionError(
+      throw ConfigDirectorConnectionException(
         'Connection failed with error: $error.',
       );
     }
@@ -149,14 +149,14 @@ class PollingTransport implements Transport {
       _hasFatalError = true;
       close();
       final body = response.body.trim();
-      throw ConfigDirectorConnectionError(
+      throw ConfigDirectorConnectionException(
         'Connection failed with status: $status${body.isEmpty ? '' : ' ($body)'}. '
         'This is an unrecoverable error, retry attempts will be ignored.',
         status,
       );
     }
 
-    throw ConfigDirectorConnectionError(
+    throw ConfigDirectorConnectionException(
       'Connection failed with status: $status',
       status,
     );
@@ -167,13 +167,13 @@ class PollingTransport implements Transport {
     try {
       json = jsonDecode(body);
     } on FormatException catch (error) {
-      throw ConfigDirectorConnectionError(
+      throw ConfigDirectorConnectionException(
         'Failed to parse the response from the server: $error',
       );
     }
 
     if (json is! Map<String, Object?>) {
-      throw const ConfigDirectorConnectionError(
+      throw const ConfigDirectorConnectionException(
         'The server responded with an unexpected payload.',
       );
     }
@@ -182,7 +182,7 @@ class PollingTransport implements Transport {
     try {
       configSet = ConfigSet.fromJson(json);
     } on Object catch (error) {
-      throw ConfigDirectorConnectionError(
+      throw ConfigDirectorConnectionException(
         'The server responded with an unexpected payload: $error',
       );
     }

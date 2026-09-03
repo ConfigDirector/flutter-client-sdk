@@ -234,7 +234,7 @@ void main() {
           '   ',
           transportFactory: (_) => transport,
         ),
-        throwsA(isA<ConfigDirectorValidationError>()),
+        throwsA(isA<ConfigDirectorValidationException>()),
       );
     });
 
@@ -247,7 +247,7 @@ void main() {
           ),
           transportFactory: (_) => transport,
         ),
-        throwsA(isA<ConfigDirectorValidationError>()),
+        throwsA(isA<ConfigDirectorValidationException>()),
       );
     });
 
@@ -364,7 +364,7 @@ void main() {
     });
 
     test('logs and swallows an unrecoverable transport error', () async {
-      transport.connectError = const ConfigDirectorConnectionError(
+      transport.connectError = const ConfigDirectorConnectionException(
         'Invalid SDK key',
         401,
       );
@@ -466,7 +466,7 @@ void main() {
 
       expect(
         () => client.getValue('a-key', () {}),
-        throwsA(isA<ConfigDirectorValidationError>()),
+        throwsA(isA<ConfigDirectorValidationException>()),
       );
     });
 
@@ -1117,7 +1117,7 @@ void main() {
 
     test('is not updated when the connection fails', () async {
       final client = autoDispose(createClient());
-      transport.connectError = const ConfigDirectorConnectionError('nope');
+      transport.connectError = const ConfigDirectorConnectionException('nope');
 
       await client.initialize(const ConfigDirectorContext(id: 'user-123'));
 

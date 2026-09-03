@@ -475,7 +475,7 @@ void main() {
       });
 
       test(
-        'emits ValueOutOfRangeError when calculateReconnectDelay returns an out-of-range value',
+        'emits ValueOutOfRangeException when calculateReconnectDelay returns an out-of-range value',
         () async {
           final client = MockClient.streaming((request, bodyStream) async {
             return _sseResponse(['retry: 5\ndata: hi\n\n']);
@@ -494,7 +494,7 @@ void main() {
           final error = await errorFuture;
           source.close();
 
-          expect(error, isA<ValueOutOfRangeError>());
+          expect(error, isA<ValueOutOfRangeException>());
         },
       );
 
@@ -760,7 +760,7 @@ void main() {
             final error = await errorFuture;
             source.close();
 
-            expect(error, isA<ValueOutOfRangeError>());
+            expect(error, isA<ValueOutOfRangeException>());
           },
         );
       }

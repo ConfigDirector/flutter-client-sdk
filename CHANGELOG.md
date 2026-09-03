@@ -8,6 +8,13 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `ConfigDirectorConnectionError` and `ConfigDirectorValidationError` are renamed to
+  `ConfigDirectorConnectionException` and `ConfigDirectorValidationException`. Both implement
+  `Exception`, and Dart reserves the `Error` suffix for programming errors that are not meant to
+  be caught.
+
 ### Fixed
 
 - A streaming update whose fields have unexpected types is logged and skipped instead of

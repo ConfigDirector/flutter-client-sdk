@@ -524,7 +524,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
 
     if (!baseUrl.isAbsolute) {
-      throw ConfigDirectorValidationError(
+      throw ConfigDirectorValidationException(
         "Invalid base URL '$baseUrl'. The base URL must be absolute.",
       );
     }
@@ -534,7 +534,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   void _validateSdkKey(String clientSdkKey) {
     if (clientSdkKey.trim().isEmpty) {
-      throw const ConfigDirectorValidationError(
+      throw const ConfigDirectorValidationException(
         'No client SDK key was provided, the client cannot be instantiated '
         'without a valid client SDK key',
       );
@@ -543,7 +543,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
   void _validateDefaultValue<T extends Object>(T defaultValue) {
     if (defaultValue is Function) {
-      throw const ConfigDirectorValidationError(
+      throw const ConfigDirectorValidationException(
         'Invalid default value. The default value for a config cannot be a function.',
       );
     }

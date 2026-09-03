@@ -1,17 +1,17 @@
-final class StreamClosedError implements Exception {
+final class StreamClosedException implements Exception {
   final String message;
 
-  const StreamClosedError(this.message);
+  const StreamClosedException(this.message);
 
   @override
-  String toString() => 'StreamClosedError: $message';
+  String toString() => 'StreamClosedException: $message';
 }
 
-final class ValueOutOfRangeError implements Exception {
+final class ValueOutOfRangeException implements Exception {
   final String message;
 
-  const ValueOutOfRangeError(this.message);
+  const ValueOutOfRangeException(this.message);
 
   @override
-  String toString() => 'ValueOutOfRangeError: $message';
+  String toString() => 'ValueOutOfRangeException: $message';
 }
