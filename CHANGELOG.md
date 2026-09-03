@@ -21,6 +21,8 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 - In polling mode, a context update issued while the previous fetch was still in flight no
   longer leaves a second poll running with the old context, and pausing the network during the
   initial fetch no longer starts polling once that fetch completes.
+- Flushing telemetry twice in quick succession, which happens every time the app is
+  backgrounded, no longer leaves an extra flush timer running for the life of the client.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

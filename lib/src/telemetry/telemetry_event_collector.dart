@@ -94,6 +94,7 @@ final class TelemetryEventCollector implements TelemetryClient {
     if (!_collecting || _closed) {
       return;
     }
+    _flushTimer?.cancel();
     _flushTimer = Timer(flushInterval, _onFlushTimer);
   }
 

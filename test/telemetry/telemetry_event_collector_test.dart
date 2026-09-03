@@ -56,6 +56,18 @@ void main() {
     });
   });
 
+  test('overlapping flushes leave a single flush scheduled', () {
+    fakeAsync((async) {
+      final collector = createCollector()..evaluatedConfig(evaluation());
+
+      unawaited(collector.flush());
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      expect(async.pendingTimers, hasLength(1));
+    });
+  });
+
   test('keeps reporting on the flush interval', () {
     fakeAsync((async) {
       final collector = createCollector();
