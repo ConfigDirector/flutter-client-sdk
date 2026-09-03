@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:configdirector_flutter_client_sdk/src/errors.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/polling_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
@@ -258,17 +257,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      Object? connectError;
-      unawaited(
-        transport.connect(const ConfigDirectorContext(), _timeout).catchError((
-          Object error,
-        ) {
-          connectError = error;
-        }),
-      );
+      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
       async.elapse(const Duration(seconds: 11));
 
-      expect(connectError, isA<ConfigDirectorConnectionError>());
+      expect(
+        logger.messages,
+        contains(contains('The initial fetch failed, will keep polling')),
+      );
       expect(requests.length, 2);
     });
   });
@@ -283,21 +278,14 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      Object? connectError;
-      unawaited(
-        transport.connect(const ConfigDirectorContext(), _timeout).catchError((
-          Object error,
-        ) {
-          connectError = error;
-        }),
-      );
+      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
       async.elapse(const Duration(seconds: 60));
 
-      expect((connectError! as ConfigDirectorConnectionError).status, 401);
       expect(
-        (connectError! as ConfigDirectorConnectionError).message,
-        contains('invalid sdk key'),
+        logger.messages,
+        contains(contains('unrecoverable error, will not poll')),
       );
+      expect(logger.errors, contains(contains('invalid sdk key')));
       expect(requests.length, 1);
     });
   });
@@ -308,10 +296,7 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await expectLater(
-      transport.connect(const ConfigDirectorContext(), _timeout),
-      throwsA(isA<ConfigDirectorConnectionError>()),
-    );
+    await transport.connect(const ConfigDirectorContext(), _timeout);
     await transport.connect(const ConfigDirectorContext(), _timeout);
 
     expect(requests.length, 1);
@@ -323,25 +308,19 @@ void main() {
     );
   });
 
-  test('reports a malformed response body', () async {
+  test('logs a malformed response body', () async {
     final transport = PollingTransport(
       optionsWith(respondWith([http.Response('not json', 200)])),
     );
     addTearDown(transport.dispose);
 
-    await expectLater(
-      transport.connect(const ConfigDirectorContext(), _timeout),
-      throwsA(
-        isA<ConfigDirectorConnectionError>().having(
-          (error) => error.message,
-          'message',
-          contains('Failed to parse the response'),
-        ),
-      ),
-    );
+    await transport.connect(const ConfigDirectorContext(), _timeout);
+
+    expect(logger.messages, contains(contains('will keep polling')));
+    expect(logger.errors, contains(contains('Failed to parse the response')));
   });
 
-  test('reports a response whose fields have the wrong types', () async {
+  test('logs a response whose fields have the wrong types', () async {
     final transport = PollingTransport(
       optionsWith(
         respondWith([
@@ -358,19 +337,12 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await expectLater(
-      transport.connect(const ConfigDirectorContext(), _timeout),
-      throwsA(
-        isA<ConfigDirectorConnectionError>().having(
-          (error) => error.message,
-          'message',
-          contains('unexpected payload'),
-        ),
-      ),
-    );
+    await transport.connect(const ConfigDirectorContext(), _timeout);
+
+    expect(logger.errors, contains(contains('unexpected payload')));
   });
 
-  test('reports a timed out request', () async {
+  test('logs a timed out request', () async {
     final transport = PollingTransport(
       optionsWith(
         MockClient((request) async {
@@ -382,19 +354,12 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await expectLater(
-      transport.connect(
-        const ConfigDirectorContext(),
-        const Duration(milliseconds: 20),
-      ),
-      throwsA(
-        isA<ConfigDirectorConnectionError>().having(
-          (error) => error.message,
-          'message',
-          contains('timed out'),
-        ),
-      ),
+    await transport.connect(
+      const ConfigDirectorContext(),
+      const Duration(milliseconds: 20),
     );
+
+    expect(logger.errors, contains(contains('timed out')));
   });
 
   test('ignores a 204 response', () async {

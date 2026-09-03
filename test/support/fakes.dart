@@ -133,22 +133,30 @@ final class FakeEventReporter implements EventReporter {
 /// clean while still allowing assertions on what was logged.
 final class RecordingLogger implements ConfigDirectorLogger {
   final List<String> messages = [];
+  final List<String> errors = [];
 
   @override
   void debug(String message, [Object? error, StackTrace? stackTrace]) =>
-      messages.add(message);
+      _record(message, error);
 
   @override
   void info(String message, [Object? error, StackTrace? stackTrace]) =>
-      messages.add(message);
+      _record(message, error);
 
   @override
   void warn(String message, [Object? error, StackTrace? stackTrace]) =>
-      messages.add(message);
+      _record(message, error);
 
   @override
   void error(String message, [Object? error, StackTrace? stackTrace]) =>
-      messages.add('$message${error == null ? '' : ': $error'}');
+      _record('$message${error == null ? '' : ': $error'}', error);
+
+  void _record(String message, Object? error) {
+    messages.add(message);
+    if (error != null) {
+      errors.add('$error');
+    }
+  }
 }
 
 ConfigSet configSet({

@@ -32,6 +32,10 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   failed or timed out. It used to stay `true` forever in those cases.
 - A `watch` stream of a JSON config no longer re-emits the same document on every update; only
   a document whose content changed is emitted.
+- In polling mode, a transient failure on the first fetch (a timeout, a server error, a malformed
+  response) no longer leaves `context` and telemetry on the previous context while polling
+  continues with the new one. The failure is logged and the next poll retries. An unrecoverable
+  failure, such as an invalid SDK key, is logged as well rather than thrown.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

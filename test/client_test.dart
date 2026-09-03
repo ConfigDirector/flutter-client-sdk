@@ -12,6 +12,9 @@ import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import 'support/fakes.dart';
 
@@ -391,6 +394,42 @@ void main() {
         expect(client.isInitializing, isFalse);
       },
     );
+  });
+
+  group('polling', () {
+    test('adopts the context when the first fetch fails transiently', () async {
+      var fetches = 0;
+      final client = autoDispose(
+        DefaultConfigDirectorClient(
+          'a-client-sdk-key',
+          options: ConfigDirectorClientOptions(
+            logger: logger,
+            connection: const ConnectionOptions(
+              mode: ConnectionMode.polling,
+              timeout: Duration(milliseconds: 50),
+            ),
+          ),
+          httpClient: MockClient((request) async {
+            fetches++;
+            return fetches == 1
+                ? http.Response('server exploded', 500)
+                : http.Response(
+                    jsonEncode({'kind': 'full', 'configs': {}}),
+                    200,
+                  );
+          }),
+          telemetryClient: telemetry,
+          lifecycleWatcher: lifecycleWatcher,
+          appInfoResolver: () async => const ConfigDirectorMetaContext(),
+        ),
+      );
+      const context = ConfigDirectorContext(id: 'user-1');
+
+      await client.initialize(context);
+
+      expect(client.context, context);
+      expect(telemetry.contextUpdates, [context]);
+    });
   });
 
   group('getValue', () {

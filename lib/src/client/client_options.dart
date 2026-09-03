@@ -35,8 +35,9 @@ final class ConnectionOptions {
   /// connection is attempted.
   ///
   /// When streaming, the operation may still succeed after it times out, as
-  /// long as no unrecoverable errors are encountered. In the other modes a
-  /// timed-out operation is not retried.
+  /// long as no unrecoverable errors are encountered. When polling, a fetch
+  /// that timed out is retried on the next polling interval. In one-time mode
+  /// a timed-out operation is not retried.
   final Duration timeout;
 
   /// The base URL of the ConfigDirector SDK server. Set this only when routing

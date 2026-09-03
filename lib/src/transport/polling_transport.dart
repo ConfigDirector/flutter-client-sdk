@@ -13,6 +13,9 @@ import 'transport.dart';
 ///
 /// A polling interval of [Duration.zero] or less disables the interval, which is
 /// how [OneTimeTransport] fetches config state only on connect.
+///
+/// [connect] never throws: a transient failure is logged and polling goes on,
+/// and an unrecoverable one is logged and polling is not started.
 class PollingTransport implements Transport {
   PollingTransport(TransportOptions options, {Duration? pollingInterval})
     : _options = options,
@@ -51,6 +54,21 @@ class PollingTransport implements Transport {
 
     try {
       await _fetchConfigs(context, timeout);
+    } on ConfigDirectorConnectionError catch (error, stackTrace) {
+      if (_hasFatalError) {
+        _logger.error(
+          '[PollingTransport] The initial fetch failed with an unrecoverable '
+          'error, will not poll',
+          error,
+          stackTrace,
+        );
+      } else {
+        _logger.warn(
+          '[PollingTransport] The initial fetch failed, will keep polling',
+          error,
+          stackTrace,
+        );
+      }
     } finally {
       if (!_hasFatalError && generation == _connectionGeneration) {
         _schedulePolling(context, timeout);
