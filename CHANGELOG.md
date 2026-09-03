@@ -18,6 +18,9 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   context wins: `context`, `onContextUpdated`, and telemetry attribution no longer end up on the
   older one. Resuming the network after a pause that interrupted `initialize` reconnects with the
   context that was passed to `initialize`.
+- In polling mode, a context update issued while the previous fetch was still in flight no
+  longer leaves a second poll running with the old context, and pausing the network during the
+  initial fetch no longer starts polling once that fetch completes.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

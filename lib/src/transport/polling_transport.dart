@@ -38,19 +38,21 @@ class PollingTransport implements Transport {
   Timer? _pollingTimer;
   String? _lastUpdateTimestamp;
   bool _hasFatalError = false;
+  int _connectionGeneration = 0;
 
   @override
   Stream<ConfigSet> get configSets => _configSets.stream;
 
   @override
   Future<void> connect(ConfigDirectorContext context, Duration timeout) async {
-    _pollingTimer?.cancel();
-    _pollingTimer = null;
+    _cancelPolling();
+    _connectionGeneration += 1;
+    final generation = _connectionGeneration;
 
     try {
       await _fetchConfigs(context, timeout);
     } finally {
-      if (!_hasFatalError) {
+      if (!_hasFatalError && generation == _connectionGeneration) {
         _schedulePolling(context, timeout);
       }
     }
@@ -174,6 +176,11 @@ class PollingTransport implements Transport {
 
   @override
   void close() {
+    _cancelPolling();
+    _connectionGeneration += 1;
+  }
+
+  void _cancelPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
   }

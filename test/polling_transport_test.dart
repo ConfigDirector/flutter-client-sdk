@@ -193,6 +193,58 @@ void main() {
     });
   });
 
+  test('a connect overtaken by a newer one does not keep polling', () {
+    fakeAsync((async) {
+      final transport = PollingTransport(
+        optionsWith(
+          MockClient((request) async {
+            requests.add(request);
+            if (request.body.contains('"id":"user-1"')) {
+              await Future<void>.delayed(const Duration(seconds: 2));
+            }
+            return http.Response(configSetBody(), 200);
+          }),
+          pollingInterval: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(transport.dispose);
+
+      unawaited(
+        transport.connect(const ConfigDirectorContext(id: 'user-1'), _timeout),
+      );
+      unawaited(
+        transport.connect(const ConfigDirectorContext(id: 'user-2'), _timeout),
+      );
+      async.elapse(const Duration(seconds: 25));
+
+      final polled = requests.skip(2).map((request) => request.body);
+      expect(polled, hasLength(2));
+      expect(polled, everyElement(contains('"id":"user-2"')));
+    });
+  });
+
+  test('does not start polling when closed while connecting', () {
+    fakeAsync((async) {
+      final transport = PollingTransport(
+        optionsWith(
+          MockClient((request) async {
+            requests.add(request);
+            await Future<void>.delayed(const Duration(seconds: 1));
+            return http.Response(configSetBody(), 200);
+          }),
+          pollingInterval: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(transport.dispose);
+
+      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      transport.close();
+      async.elapse(const Duration(seconds: 35));
+
+      expect(requests, hasLength(1));
+    });
+  });
+
   test('keeps polling after a transient failure so the client can recover', () {
     fakeAsync((async) {
       final transport = PollingTransport(
