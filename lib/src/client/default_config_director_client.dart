@@ -41,7 +41,7 @@ final class _ConfigWatcher {
 
 /// The default [ConfigDirectorClient] implementation.
 final class DefaultConfigDirectorClient implements ConfigDirectorClient {
-  DefaultConfigDirectorClient(
+  factory DefaultConfigDirectorClient(
     String clientSdkKey, {
     ConfigDirectorClientOptions? options,
     http.Client? httpClient,
@@ -51,28 +51,14 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     String? Function()? userAgentResolver,
     AppInfoResolver? appInfoResolver,
     TelemetryClient? telemetryClient,
-  }) : _logger = options?.logger ?? ConsoleLogger(),
-       _timeout = options?.connection.timeout ?? const Duration(seconds: 3) {
+  }) {
     _validateSdkKey(clientSdkKey);
 
+    final logger = options?.logger ?? ConsoleLogger();
     final connection = options?.connection ?? const ConnectionOptions();
     final baseUrl = _resolveBaseUrl(connection.baseUrl);
-    _telemetry =
-        telemetryClient ??
-        TelemetryEventCollector(
-          logger: _logger,
-          reporter: createEventReporter(
-            sdkKey: clientSdkKey,
-            baseUrl: baseUrl,
-            metaContext: const TelemetryMetaContext(
-              sdkName: constants.sdkName,
-              sdkVersion: constants.sdkVersion,
-            ),
-            logger: _logger,
-          ),
-        );
 
-    final transportOptions = _transportOptions = TransportOptions(
+    final transportOptions = TransportOptions(
       clientSdkKey: clientSdkKey,
       baseUrl: baseUrl,
       metaContext: SdkMetaContext(
@@ -82,39 +68,73 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         userAgent: (userAgentResolver ?? resolveUserAgent)(),
       ),
       instanceId: const Uuid().v4(),
-      logger: _logger,
+      logger: logger,
       connectionRetryDelay: connectionRetryDelay ?? _exponentialRetryDelay,
       httpClient: httpClient,
       pollingInterval: connection.pollingInterval,
     );
 
-    _transport =
-        transportFactory?.call(transportOptions) ??
-        _createTransport(connection.mode, transportOptions);
-    _configSetSubscription = _transport.configSets.listen(_handleConfigSet);
-
-    _pauseWhileBackgrounded = connection.pauseWhileBackgrounded;
-    _lifecycleWatcher =
-        lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(_logger);
-    _lifecycleWatcher!.start(_handleLifecycleState);
-
-    _appInfoResolved = _resolveAppInfo(
-      options?.metadata,
-      appInfoResolver ?? resolveAppInfo,
+    return DefaultConfigDirectorClient._(
+      logger: logger,
+      timeout: connection.timeout,
+      telemetry:
+          telemetryClient ??
+          TelemetryEventCollector(
+            logger: logger,
+            reporter: createEventReporter(
+              sdkKey: clientSdkKey,
+              baseUrl: baseUrl,
+              metaContext: const TelemetryMetaContext(
+                sdkName: constants.sdkName,
+                sdkVersion: constants.sdkVersion,
+              ),
+              logger: logger,
+            ),
+          ),
+      transportOptions: transportOptions,
+      transport:
+          transportFactory?.call(transportOptions) ??
+          _createTransport(connection.mode, transportOptions),
+      pauseWhileBackgrounded: connection.pauseWhileBackgrounded,
+      lifecycleWatcher:
+          lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(logger),
+      metadata: options?.metadata,
+      appInfoResolver: appInfoResolver ?? resolveAppInfo,
     );
+  }
+
+  DefaultConfigDirectorClient._({
+    required ConfigDirectorLogger logger,
+    required Duration timeout,
+    required TelemetryClient telemetry,
+    required TransportOptions transportOptions,
+    required Transport transport,
+    required bool pauseWhileBackgrounded,
+    required AppLifecycleWatcher lifecycleWatcher,
+    required ConfigDirectorMetaContext? metadata,
+    required AppInfoResolver appInfoResolver,
+  }) : _logger = logger,
+       _timeout = timeout,
+       _telemetry = telemetry,
+       _transportOptions = transportOptions,
+       _transport = transport,
+       _pauseWhileBackgrounded = pauseWhileBackgrounded,
+       _lifecycleWatcher = lifecycleWatcher {
+    _configSetSubscription = _transport.configSets.listen(_handleConfigSet);
+    _lifecycleWatcher.start(_handleLifecycleState);
+    _appInfoResolved = _resolveAppInfo(metadata, appInfoResolver);
   }
 
   final ConfigDirectorLogger _logger;
   final Duration _timeout;
+  final TelemetryClient _telemetry;
+  final TransportOptions _transportOptions;
+  final Transport _transport;
+  final bool _pauseWhileBackgrounded;
+  final AppLifecycleWatcher _lifecycleWatcher;
 
-  late final TransportOptions _transportOptions;
-  late final Transport _transport;
-  late final TelemetryClient _telemetry;
-  late final bool _pauseWhileBackgrounded;
-
-  late final Future<void> _appInfoResolved;
   late final StreamSubscription<ConfigSet> _configSetSubscription;
-  AppLifecycleWatcher? _lifecycleWatcher;
+  late final Future<void> _appInfoResolved;
 
   final Map<String, List<_ConfigWatcher>> _watchers = {};
 
@@ -252,8 +272,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       'to the server and removing all observers',
     );
 
-    _lifecycleWatcher?.stop();
-    _lifecycleWatcher = null;
+    _lifecycleWatcher.stop();
     unawaited(_telemetry.close());
     unawaited(_configSetSubscription.cancel());
     unwatchAll();
@@ -508,17 +527,19 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
-  Transport _createTransport(ConnectionMode mode, TransportOptions options) =>
-      switch (mode) {
-        ConnectionMode.streaming => StreamingTransport(options),
-        ConnectionMode.polling => PollingTransport(options),
-        ConnectionMode.oneTime => OneTimeTransport(options),
-      };
+  static Transport _createTransport(
+    ConnectionMode mode,
+    TransportOptions options,
+  ) => switch (mode) {
+    ConnectionMode.streaming => StreamingTransport(options),
+    ConnectionMode.polling => PollingTransport(options),
+    ConnectionMode.oneTime => OneTimeTransport(options),
+  };
 
   static Duration _exponentialRetryDelay(int attempt) =>
       Duration(seconds: pow(2, min(attempt, _maxBackoffExponent)).toInt());
 
-  Uri _resolveBaseUrl(Uri? baseUrl) {
+  static Uri _resolveBaseUrl(Uri? baseUrl) {
     if (baseUrl == null) {
       return constants.clientBaseUrl;
     }
@@ -532,7 +553,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     return baseUrl;
   }
 
-  void _validateSdkKey(String clientSdkKey) {
+  static void _validateSdkKey(String clientSdkKey) {
     if (clientSdkKey.trim().isEmpty) {
       throw const ConfigDirectorValidationException(
         'No client SDK key was provided, the client cannot be instantiated '
