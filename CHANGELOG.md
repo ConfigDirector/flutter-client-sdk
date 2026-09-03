@@ -36,6 +36,8 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   response) no longer leaves `context` and telemetry on the previous context while polling
   continues with the new one. The failure is logged and the next poll retries. An unrecoverable
   failure, such as an invalid SDK key, is logged as well rather than thrown.
+- In streaming mode, an unrecoverable failure to connect, such as an invalid SDK key, is logged
+  rather than thrown from the transport, so no transport can throw into the application.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

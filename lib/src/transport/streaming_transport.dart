@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../errors.dart';
 import '../eventsource/eventsource.dart';
 import '../logger.dart';
 import '../types.dart';
@@ -11,6 +10,9 @@ import 'transport.dart';
 
 /// A [Transport] that keeps a server-sent events connection open, receiving
 /// config state as soon as it changes on the server.
+///
+/// [connect] never throws: a transient failure is retried in the background,
+/// and an unrecoverable one is logged and not retried.
 final class StreamingTransport implements Transport {
   StreamingTransport(TransportOptions options)
     : _options = options,
@@ -85,12 +87,11 @@ final class StreamingTransport implements Transport {
       return true;
     }
 
+    _logger.error(
+      '[StreamingTransport] ${_fatalErrorMessage(state.status, state.error)}',
+    );
     if (!connected.isCompleted) {
-      connected.completeError(_fatalError(state.status, state.error));
-    } else {
-      _logger.error(
-        '[StreamingTransport] ${_fatalError(state.status, state.error).message}',
-      );
+      connected.complete();
     }
     return false;
   }
@@ -108,13 +109,10 @@ final class StreamingTransport implements Transport {
     return delay;
   }
 
-  ConfigDirectorConnectionError _fatalError(int? status, Object? error) {
+  String _fatalErrorMessage(int? status, Object? error) {
     final errorLine = error == null ? '' : ' Error: $error.';
-    return ConfigDirectorConnectionError(
-      'Connection failed with status: ${status ?? 'unknown'}.$errorLine '
-      'This is an unrecoverable error, will not attempt to reconnect.',
-      status ?? 0,
-    );
+    return 'Connection failed with status: ${status ?? 'unknown'}.$errorLine '
+        'This is an unrecoverable error, will not attempt to reconnect.';
   }
 
   void _dispatchMessage(String data) {

@@ -61,8 +61,8 @@ abstract interface class Transport {
   /// once [timeout] elapses.
   ///
   /// Completing does not imply config state was received; that arrives on
-  /// [configSets]. Throws a [ConfigDirectorConnectionError] when the connection
-  /// fails with an unrecoverable error.
+  /// [configSets]. Never throws: failures are logged, and an unrecoverable one
+  /// stops the transport from retrying.
   Future<void> connect(ConfigDirectorContext context, Duration timeout);
 
   /// Closes the connection without releasing the transport. It can be

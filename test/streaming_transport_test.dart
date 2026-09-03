@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:configdirector_flutter_client_sdk/src/errors.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/streaming_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
@@ -179,23 +178,22 @@ void main() {
   });
 
   test(
-    'fails with an unrecoverable error when the server rejects the request',
+    'logs an unrecoverable error when the server rejects the request',
     () async {
       final transport = StreamingTransport(
         optionsWith(streamingClient(status: 401)),
       );
       addTearDown(transport.dispose);
 
-      await expectLater(
-        transport.connect(const ConfigDirectorContext(), _timeout),
-        throwsA(
-          isA<ConfigDirectorConnectionError>()
-              .having((error) => error.status, 'status', 401)
-              .having(
-                (error) => error.message,
-                'message',
-                contains('will not attempt to reconnect'),
-              ),
+      await transport.connect(const ConfigDirectorContext(), _timeout);
+
+      expect(
+        logger.messages,
+        contains(
+          allOf(
+            contains('status: 401'),
+            contains('will not attempt to reconnect'),
+          ),
         ),
       );
       expect(requestedRetryDelays, isEmpty);
