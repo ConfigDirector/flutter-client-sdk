@@ -150,6 +150,22 @@ void main() {
     },
   );
 
+  test('logs and skips a message that is not a JSON object', () async {
+    final transport = StreamingTransport(optionsWith(streamingClient()));
+    addTearDown(transport.dispose);
+
+    final configSets = <ConfigSet>[];
+    transport.configSets.listen(configSets.add);
+    await transport.connect(const ConfigDirectorContext(), _timeout);
+
+    sendEvent('[1, 2, 3]');
+    sendEvent(configSetBody());
+    await pumpEventQueue();
+
+    expect(configSets.length, 1);
+    expect(logger.messages, contains(contains('not a JSON object')));
+  });
+
   test('logs and skips a message whose fields have the wrong types', () async {
     final transport = StreamingTransport(optionsWith(streamingClient()));
     addTearDown(transport.dispose);

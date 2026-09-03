@@ -111,21 +111,28 @@ final class StreamingTransport implements Transport {
   }
 
   void _dispatchMessage(String data) {
+    final ConfigSet configSet;
     try {
       final json = jsonDecode(data);
       if (json is! Map<String, Object?>) {
-        throw const FormatException('Expected a JSON object');
+        _logger.error(
+          '[StreamingTransport] Ignoring a config data update that is not a '
+          'JSON object',
+        );
+        return;
       }
-      final configSet = ConfigSet.fromJson(json);
-      if (!_configSets.isClosed) {
-        _configSets.add(configSet);
-      }
+      configSet = ConfigSet.fromJson(json);
     } on Object catch (error, stackTrace) {
       _logger.error(
         '[StreamingTransport] Error parsing and dispatching config data update',
         error,
         stackTrace,
       );
+      return;
+    }
+
+    if (!_configSets.isClosed) {
+      _configSets.add(configSet);
     }
   }
 
