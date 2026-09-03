@@ -370,6 +370,7 @@ void main() {
       await client.initialize();
 
       expect(client.isReady, isFalse);
+      expect(client.isInitializing, isFalse);
       expect(
         logger.messages.any(
           (message) =>
@@ -378,6 +379,18 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+      'is no longer initializing once initialize gives up waiting',
+      () async {
+        final client = autoDispose(createClient());
+
+        await client.initialize();
+
+        expect(client.isReady, isFalse);
+        expect(client.isInitializing, isFalse);
+      },
+    );
   });
 
   group('getValue', () {

@@ -165,9 +165,13 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   bool get isInitializing => _initializing;
 
   @override
-  Future<void> initialize([ConfigDirectorContext? context]) {
+  Future<void> initialize([ConfigDirectorContext? context]) async {
     _initializing = true;
-    return _connect(context, ClientConnectAction.initialization);
+    try {
+      await _connect(context, ClientConnectAction.initialization);
+    } finally {
+      _initializing = false;
+    }
   }
 
   @override
@@ -397,7 +401,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
     readyCompleter.complete();
     _ready = true;
-    _initializing = false;
     _emit(_clientReady, ClientReadyEvent(_pendingAction));
     _logger.debug(
       '[ConfigDirectorClient] Received initial payload from the server, client is ready',

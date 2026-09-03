@@ -28,6 +28,8 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 - The time spent reading the app name and version from the platform no longer counts against
   the initialization timeout, so a slow platform channel on cold start no longer makes
   `initialize` give up on the first config set early.
+- `isInitializing` returns to `false` once `initialize` completes, including when the connection
+  failed or timed out. It used to stay `true` forever in those cases.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.
