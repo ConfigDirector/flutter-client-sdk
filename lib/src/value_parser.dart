@@ -20,14 +20,12 @@ final class ConfigEvaluationResult<T extends Object> {
   final EvaluationReason reason;
 }
 
-/// Config types a boolean can be parsed from.
 const Set<ConfigType> _booleanSourceTypes = {
   ConfigType.boolean,
   ConfigType.string,
   ConfigType.custom,
 };
 
-/// Config types a number can be parsed from.
 const Set<ConfigType> _numericSourceTypes = {
   ConfigType.integer,
   ConfigType.float,
@@ -52,8 +50,6 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
     return _parseJson(rawValue, defaultValue, configState.valueId);
   }
 
-  // Every config value is a string on the wire, so a string default always
-  // matches regardless of the config's declared type.
   if (defaultValue is String) {
     return _matched(rawValue, configState.valueId, defaultValue);
   }
@@ -72,17 +68,12 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
     if (!_numericSourceTypes.contains(configState.type)) {
       return _useDefault(defaultValue, EvaluationReason.typeMismatch);
     }
-    // Dispatch on `T` rather than on the runtime type of [defaultValue]: on the
-    // web every number is a JavaScript double, so `0.0 is int` is true there
-    // and a `double` default would otherwise be truncated. A `num` default
-    // falls through to the double branch, which any numeric value satisfies.
     final parsed = T == int ? _parseInt(rawValue) : _parseDouble(rawValue);
     return parsed == null
         ? _useDefault(defaultValue, EvaluationReason.invalidNumber)
         : _matched(parsed, configState.valueId, defaultValue);
   }
 
-  // Structured defaults (maps, lists) can only come from a JSON config.
   return _useDefault(defaultValue, EvaluationReason.typeMismatch);
 }
 
@@ -91,7 +82,6 @@ ConfigEvaluationResult<T> _parseJson<T extends Object>(
   T defaultValue,
   String? valueId,
 ) {
-  // A string default asks for the raw JSON document rather than a decoded one.
   if (defaultValue is String) {
     return _matched(rawValue, valueId, defaultValue);
   }
@@ -110,8 +100,6 @@ ConfigEvaluationResult<T> _parseJson<T extends Object>(
   return _matched(decoded, valueId, defaultValue);
 }
 
-/// Returns a match when [parsed] is assignable to `T`, and a type mismatch
-/// otherwise. Keeps every parsing branch from having to cast unsafely.
 ConfigEvaluationResult<T> _matched<T extends Object>(
   Object parsed,
   String? valueId,
@@ -144,8 +132,6 @@ bool? _parseBool(String value) => switch (value.toLowerCase()) {
   _ => null,
 };
 
-/// Parses an integer, truncating values written as decimals so that a float
-/// config can still serve an `int` default.
 int? _parseInt(String value) =>
     int.tryParse(value) ?? _parseDouble(value)?.truncate();
 

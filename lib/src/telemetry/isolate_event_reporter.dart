@@ -57,15 +57,13 @@ final class IsolateEventReporter implements EventReporter {
       return _localFallback().report(request);
     }
 
-    final id = _nextRequestId++;
+    final id = _nextRequestId;
+    _nextRequestId += 1;
     final completer = Completer<ReporterResponse>();
     _pendingRequests[id] = completer;
     try {
       port.send(_ReportMessage(id, request));
     } on Object catch (error, stackTrace) {
-      // A context carrying values that cannot cross an isolate boundary is the
-      // likely cause, and it would fail the same way on the next flush, so drop
-      // this batch rather than retrying it forever.
       _pendingRequests.remove(id);
       _logger.warn(
         '[IsolateEventReporter] Could not hand the telemetry batch to the '
@@ -123,14 +121,11 @@ final class IsolateEventReporter implements EventReporter {
         _pendingRequests.remove(id)?.complete(response);
       case _LogMessage(:final level, :final message):
         _log(level, message);
-      // `onError` reports an uncaught error as a two-element list holding the
-      // error and the stack trace, both already turned into strings.
       case final List<Object?> error:
         _logger.warn(
           '[IsolateEventReporter] The telemetry isolate failed: '
           '${error.join('\n')}',
         );
-      // `onExit` reports the isolate is gone by sending `null`.
       case null:
         _handleIsolateExit(ready);
     }
@@ -153,8 +148,6 @@ final class IsolateEventReporter implements EventReporter {
       return;
     }
 
-    // The isolate is not restarted: whatever brought it down would most likely
-    // bring the next one down too.
     _startup = Future.value(null);
     _logger.warn(
       '[IsolateEventReporter] The telemetry isolate stopped, telemetry will be '
@@ -186,8 +179,6 @@ final class IsolateEventReporter implements EventReporter {
 
     await _localReporter?.close();
 
-    // The isolate may still be starting up, and it can only be told to stop
-    // once there is a port to tell it on.
     final port = await (_startup ?? Future<SendPort?>.value());
     if (port == null) {
       _fromIsolate?.close();
@@ -199,11 +190,6 @@ final class IsolateEventReporter implements EventReporter {
   }
 }
 
-/// The entry point of the telemetry isolate.
-///
-/// It owns an [HttpEventReporter] and does nothing until the main isolate hands
-/// it a batch to report, which keeps it idle for all but a few milliseconds
-/// every flush interval.
 void _telemetryIsolateMain(_IsolateInit init) {
   final requests = ReceivePort();
   final reporter = HttpEventReporter(
@@ -213,8 +199,6 @@ void _telemetryIsolateMain(_IsolateInit init) {
     logger: _IsolateLogger(init.responsePort),
   );
 
-  // Messages are handled one after another: a close must not tear the HTTP
-  // client down from under a report that is still being sent.
   var handled = Future<void>.value();
   requests.listen((message) {
     handled = handled.then((_) async {
@@ -224,8 +208,6 @@ void _telemetryIsolateMain(_IsolateInit init) {
           init.responsePort.send(_ReportResultMessage(id, response));
         case _CloseMessage():
           await reporter.close();
-          // Closing the last open port lets the isolate shut down, which the
-          // main isolate learns about through the `onExit` port it registered.
           requests.close();
       }
     });
@@ -234,8 +216,6 @@ void _telemetryIsolateMain(_IsolateInit init) {
   init.responsePort.send(requests.sendPort);
 }
 
-/// The logger used inside the telemetry isolate, which forwards every message
-/// to the application's logger on the main isolate.
 final class _IsolateLogger implements ConfigDirectorLogger {
   const _IsolateLogger(this._port);
 
@@ -257,8 +237,6 @@ final class _IsolateLogger implements ConfigDirectorLogger {
   void error(String message, [Object? error, StackTrace? stackTrace]) =>
       _send(ConfigDirectorLogLevel.error, message, error);
 
-  // Errors are formatted into the message rather than sent along with it: an
-  // arbitrary error object may not be able to cross an isolate boundary.
   void _send(ConfigDirectorLogLevel level, String message, Object? error) =>
       _port.send(
         _LogMessage(level, error == null ? message : '$message: $error'),

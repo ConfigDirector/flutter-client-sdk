@@ -27,9 +27,6 @@ final class WidgetsBindingLifecycleWatcher
   void start(void Function(AppLifecycleState state) onStateChanged) {
     _onStateChanged = onStateChanged;
 
-    // The binding is unavailable in pure Dart tests and in apps that create the
-    // client before `runApp`. Neither is a reason to fail construction, so fall
-    // back to leaving the connection under manual control.
     try {
       _binding = WidgetsBinding.instance..addObserver(this);
     } on Object catch (error) {

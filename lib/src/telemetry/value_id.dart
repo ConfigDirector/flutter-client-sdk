@@ -2,11 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-/// How many bytes of the digest make up a value id.
 const int _digestBytes = 16;
 
-/// The length every value id is padded to: `ceil(128 / log2(62))`, the number
-/// of base62 digits [_digestBytes] bytes can produce.
 const int _valueIdLength = 22;
 
 const String _base62Alphabet =

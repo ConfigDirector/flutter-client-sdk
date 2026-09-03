@@ -33,8 +33,6 @@ final class TelemetryValue {
       try {
         encoded = jsonEncode(value);
       } on Object {
-        // Values that cannot be encoded are still worth counting, so fall back
-        // to whatever the value describes itself as.
         return TelemetryValue(value: value.toString(), type: ConfigType.json);
       }
       return TelemetryValue(value: encoded, type: ConfigType.json);

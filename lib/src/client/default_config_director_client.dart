@@ -28,14 +28,11 @@ import 'config_director_client.dart';
 /// Builds the transport the client connects with. Injectable for testing.
 typedef TransportFactory = Transport Function(TransportOptions options);
 
-/// 2^9 seconds is a little over 8 minutes, which caps the backoff to under 10.
-const int _maxExponentialDelay = 9;
+const int _maxBackoffExponent = 9;
 
-/// A single [ConfigDirectorClient.watch] subscription.
 final class _ConfigWatcher {
   _ConfigWatcher({required this.reevaluate, required this.close});
 
-  /// Re-evaluates the config and emits the value if it changed.
   final void Function() reevaluate;
 
   final Future<void> Function() close;
@@ -114,8 +111,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   late final TelemetryClient _telemetry;
   late final bool _pauseWhileBackgrounded;
 
-  /// Completes once the app name and version have been filled in on
-  /// [_transportOptions], whether or not the platform reported them.
   late final Future<void> _appInfoResolved;
   late final StreamSubscription<ConfigSet> _configSetSubscription;
   AppLifecycleWatcher? _lifecycleWatcher;
@@ -167,11 +162,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   @override
   Future<void> initialize([ConfigDirectorContext? context]) async {
     _initializing = true;
-    try {
-      await _connect(context, ClientConnectAction.initialization);
-    } finally {
-      _initializing = false;
-    }
+    await _connect(context, ClientConnectAction.initialization);
+    _initializing = false;
   }
 
   @override
@@ -283,7 +275,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     ConfigDirectorContext? context,
     ClientConnectAction action,
   ) async {
-    final generation = ++_connectionGeneration;
+    _connectionGeneration += 1;
+    final generation = _connectionGeneration;
     try {
       _ready = false;
       _hasConnected = true;
@@ -327,11 +320,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
-  /// Fills in whichever of the app name and version the application did not
-  /// provide with the value the platform reports for the running application.
-  ///
-  /// The platform is not consulted at all when both were provided. Failures are
-  /// not fatal: the SDK reports whatever it has and carries on connecting.
   Future<void> _resolveAppInfo(
     ConfigDirectorMetaContext? provided,
     AppInfoResolver resolver,
@@ -527,7 +515,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       };
 
   static Duration _exponentialRetryDelay(int attempt) =>
-      Duration(seconds: pow(2, min(attempt, _maxExponentialDelay)).toInt());
+      Duration(seconds: pow(2, min(attempt, _maxBackoffExponent)).toInt());
 
   Uri _resolveBaseUrl(Uri? baseUrl) {
     if (baseUrl == null) {
