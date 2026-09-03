@@ -30,6 +30,10 @@ final class ConnectionOptions {
 
   /// How long to wait for initialization and context updates.
   ///
+  /// The first initialization also reads the app name and version from the
+  /// platform, which has its own budget of the same length before the
+  /// connection is attempted.
+  ///
   /// When streaming, the operation may still succeed after it times out, as
   /// long as no unrecoverable errors are encountered. In the other modes a
   /// timed-out operation is not retried.

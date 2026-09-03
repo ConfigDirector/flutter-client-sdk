@@ -288,8 +288,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       final readyCompleter = Completer<void>();
       _readyCompleter = readyCompleter;
 
-      final stopwatch = Stopwatch()..start();
       await _appInfoResolved;
+      final stopwatch = Stopwatch()..start();
       await _transport.connect(
         context ?? const ConfigDirectorContext(),
         _timeout,

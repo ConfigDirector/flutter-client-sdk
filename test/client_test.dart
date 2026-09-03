@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
@@ -315,6 +317,35 @@ void main() {
         );
       },
     );
+
+    test('waits the full timeout for a config set even when reading the app '
+        'info took a while', () async {
+      final appInfo = Completer<ConfigDirectorMetaContext>();
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            timeout: Duration(milliseconds: 200),
+          ),
+          appInfoResolver: () => appInfo.future,
+        ),
+      );
+      transport.holdConnects = true;
+
+      bool? readyOnReturn;
+      final initialization = client.initialize().then(
+        (_) => readyOnReturn = client.isReady,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      appInfo.complete(const ConfigDirectorMetaContext());
+      await pumpEventQueue();
+      transport.heldConnects.single.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      expect(readyOnReturn, isTrue);
+      expect(logger.messages, isNot(contains(contains('Timed out'))));
+    });
 
     test('becomes ready if the config set arrives after the timeout', () async {
       final client = autoDispose(createClient());

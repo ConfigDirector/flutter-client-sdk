@@ -25,6 +25,9 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   backgrounded, no longer leaves an extra flush timer running for the life of the client.
 - Pausing the network while the streaming connection was still being established no longer
   leaves that connection open in the background once the server answers.
+- The time spent reading the app name and version from the platform no longer counts against
+  the initialization timeout, so a slow platform channel on cold start no longer makes
+  `initialize` give up on the first config set early.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.
