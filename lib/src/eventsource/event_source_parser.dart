@@ -1,5 +1,7 @@
 import 'types.dart';
 
+final RegExp _retryMilliseconds = RegExp(r'^[0-9]{1,15}$');
+
 class EventSourceParser {
   bool _isFirstChunk = true;
   String _bufferedInput = '';
@@ -35,15 +37,10 @@ class EventSourceParser {
     }
   }
 
-  // Per the SSE spec, any data still buffered when the stream ends is
-  // discarded — an event requires a terminating empty line to be dispatched.
   void finish() {
     _bufferedInput = '';
   }
 
-  // Scans character by character to extract complete lines, recognizing CR,
-  // LF, and CRLF as line terminators per the SSE spec. Any unterminated
-  // trailing text is buffered and prepended to the next chunk.
   List<String> _scanLines(String text) {
     final lines = <String>[];
     var lineStart = 0;
@@ -53,7 +50,6 @@ class EventSourceParser {
       final unit = text.codeUnitAt(i);
       if (unit == 0x0D || unit == 0x0A) {
         lines.add(text.substring(lineStart, i));
-        // Consume CRLF as a single terminator rather than two separate lines.
         if (unit == 0x0D &&
             i + 1 < text.length &&
             text.codeUnitAt(i + 1) == 0x0A) {
@@ -108,13 +104,12 @@ class EventSourceParser {
         _currentData += '${parsed.value}\n';
         break;
       case 'id':
-        // Spec: ignore id values that contain a null character.
         if (!parsed.value.contains('\u0000')) {
           _lastEventId = parsed.value;
         }
         break;
       case 'retry':
-        if (RegExp(r'^\d+$').hasMatch(parsed.value)) {
+        if (_retryMilliseconds.hasMatch(parsed.value)) {
           onRetry?.call(Duration(milliseconds: int.parse(parsed.value)));
         }
         break;

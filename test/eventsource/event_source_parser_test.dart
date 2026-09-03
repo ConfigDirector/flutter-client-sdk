@@ -191,6 +191,12 @@ void main() {
         expect(h.retries, isEmpty);
       });
 
+      test('ignores retry if value is too long to be a delay', () {
+        final h = _ParserHarness();
+        h.parser.parse('retry: 99999999999999999999\n\n');
+        expect(h.retries, isEmpty);
+      });
+
       test('processes retry without dispatching an event if data is empty', () {
         final h = _ParserHarness();
         h.parser.parse('retry: 5000\n\n');
