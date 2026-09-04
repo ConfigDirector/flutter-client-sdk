@@ -2,22 +2,24 @@ import 'types.dart';
 
 final RegExp _retryMilliseconds = RegExp(r'^[0-9]{1,15}$');
 
-class EventSourceParser {
-  bool _isFirstChunk = true;
-  String _bufferedInput = '';
-  String? _currentType;
-  String _currentData = '';
-  String? _lastEventId;
-
-  final EventSourceMessageHandler onEvent;
-  final EventParserRetryCallback? onRetry;
-  final EventSourceCommentHandler? onComment;
-
+final class EventSourceParser {
   EventSourceParser({
     EventSourceMessageHandler? onEvent,
     this.onRetry,
     this.onComment,
   }) : onEvent = onEvent ?? ((_) {});
+
+  final EventSourceMessageHandler onEvent;
+
+  final EventParserRetryCallback? onRetry;
+
+  final EventSourceCommentHandler? onComment;
+
+  bool _isFirstChunk = true;
+  String _bufferedInput = '';
+  String? _currentType;
+  String _currentData = '';
+  String? _lastEventId;
 
   void parse(String chunk) {
     var input = chunk;

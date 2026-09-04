@@ -2,17 +2,22 @@ enum ReadyState { connecting, open, closed }
 
 typedef ReconnectionState = ({
   int attempt,
+
   Duration serverReconnectionTime,
+
   int? status,
+
   Object? error,
 });
 
 final class EventSourceMessage {
-  final String? id;
-  final String? type;
-  final String data;
-
   const EventSourceMessage({this.id, this.type, required this.data});
+
+  final String? id;
+
+  final String? type;
+
+  final String data;
 
   @override
   bool operator ==(Object other) =>
@@ -30,7 +35,11 @@ final class EventSourceMessage {
 }
 
 typedef ShouldReconnect = bool Function(ReconnectionState state);
+
 typedef CalculateReconnectDelay = Duration Function(ReconnectionState state);
+
 typedef EventSourceMessageHandler = void Function(EventSourceMessage message);
+
 typedef EventSourceCommentHandler = void Function(String comment);
+
 typedef EventParserRetryCallback = void Function(Duration retryDelay);

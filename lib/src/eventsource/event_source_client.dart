@@ -11,36 +11,7 @@ class _ConnectionToken {
   bool aborted = false;
 }
 
-class EventSourceClient {
-  final Uri url;
-  final String method;
-  final String? body;
-  final bool followRedirects;
-  final Map<String, String> _headers;
-  final http.Client _client;
-  final bool _ownsClient;
-  final ShouldReconnect _shouldReconnect;
-  final CalculateReconnectDelay _calculateReconnectDelay;
-
-  String? _lastEventId;
-
-  int _reconnectAttempt = 0;
-  _ConnectionToken _token = _ConnectionToken();
-  Timer? _reconnectTimer;
-  ReadyState _readyState = ReadyState.closed;
-  Duration _serverReconnectionTime = const Duration(seconds: 2);
-  StreamSubscription<String>? _subscription;
-  Completer<void>? _readCompleter;
-  bool _disposed = false;
-
-  final StreamController<EventSourceMessage> _messages =
-      StreamController.broadcast();
-  final StreamController<String> _comments = StreamController.broadcast();
-  final StreamController<Object> _errors = StreamController.broadcast();
-  final StreamController<ReadyState> _readyStates = StreamController.broadcast(
-    sync: true,
-  );
-
+final class EventSourceClient {
   EventSourceClient({
     required this.url,
     this.method = 'GET',
@@ -58,6 +29,38 @@ class EventSourceClient {
        _ownsClient = client == null,
        _shouldReconnect = shouldReconnect,
        _calculateReconnectDelay = calculateReconnectDelay;
+
+  final Uri url;
+
+  final String method;
+
+  final String? body;
+
+  final bool followRedirects;
+
+  final Map<String, String> _headers;
+  final http.Client _client;
+  final bool _ownsClient;
+  final ShouldReconnect _shouldReconnect;
+  final CalculateReconnectDelay _calculateReconnectDelay;
+
+  final StreamController<EventSourceMessage> _messages =
+      StreamController.broadcast();
+  final StreamController<String> _comments = StreamController.broadcast();
+  final StreamController<Object> _errors = StreamController.broadcast();
+  final StreamController<ReadyState> _readyStates = StreamController.broadcast(
+    sync: true,
+  );
+
+  String? _lastEventId;
+  int _reconnectAttempt = 0;
+  _ConnectionToken _token = _ConnectionToken();
+  Timer? _reconnectTimer;
+  ReadyState _readyState = ReadyState.closed;
+  Duration _serverReconnectionTime = const Duration(seconds: 2);
+  StreamSubscription<String>? _subscription;
+  Completer<void>? _readCompleter;
+  bool _disposed = false;
 
   static bool _defaultShouldReconnect(ReconnectionState state) => true;
 
