@@ -55,7 +55,7 @@ Reading [lib/main.dart](lib/main.dart) top to bottom, in order:
 
 ```yaml
 dependencies:
-  configdirector_flutter_client_sdk: ^0.1.0
+  configdirector_flutter_client_sdk: ^1.0.0
 ```
 
 ## Tests
