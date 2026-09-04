@@ -8,6 +8,8 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-04
+
 ### Changed
 
 - **Breaking:** `ConfigDirectorConnectionError` and `ConfigDirectorValidationError` are renamed to
