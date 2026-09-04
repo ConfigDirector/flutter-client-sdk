@@ -45,6 +45,7 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   failure, such as an invalid SDK key, is logged as well rather than thrown.
 - In streaming mode, an unrecoverable failure to connect, such as an invalid SDK key, is logged
   rather than thrown from the transport, so no transport can throw into the application.
+- `ConfigDirectorContext` equality compares nested traits by value rather than by identity.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

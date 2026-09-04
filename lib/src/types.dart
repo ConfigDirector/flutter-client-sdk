@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 /// The type a config was declared with in the ConfigDirector dashboard.
@@ -172,6 +173,10 @@ final class ConfigDirectorContext {
 
   /// Arbitrary traits for the current user. They are shown in the
   /// ConfigDirector dashboard and may be used by targeting rules.
+  ///
+  /// The map is held as given and must not be modified after the context is
+  /// created. Two contexts whose traits are structurally equal, nested values
+  /// included, compare equal.
   final Map<String, Object?>? traits;
 
   /// Whether to treat this context as anonymous during evaluation. When `true`,
@@ -197,10 +202,15 @@ final class ConfigDirectorContext {
           other.id == id &&
           other.name == name &&
           other.anonymous == anonymous &&
-          mapEquals(other.traits, traits));
+          const DeepCollectionEquality().equals(other.traits, traits));
 
   @override
-  int get hashCode => Object.hash(id, name, anonymous, traits?.length);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    anonymous,
+    const DeepCollectionEquality().hash(traits),
+  );
 
   @override
   String toString() =>
