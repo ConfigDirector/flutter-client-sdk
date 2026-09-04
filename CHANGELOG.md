@@ -46,6 +46,9 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 - In streaming mode, an unrecoverable failure to connect, such as an invalid SDK key, is logged
   rather than thrown from the transport, so no transport can throw into the application.
 - `ConfigDirectorContext` equality compares nested traits by value rather than by identity.
+- The client rejects a `timeout` that is not positive, and a `pollingInterval` that is not
+  positive in polling mode, with a `ConfigDirectorValidationException` at construction. A zero
+  polling interval used to turn polling into a one-time fetch silently.
 - A `watch` stream now falls back to its default when a full config update no longer carries its
   config. It used to keep yielding the last value it had seen while `getValue` already returned
   the default.

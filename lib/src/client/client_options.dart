@@ -25,10 +25,11 @@ final class ConnectionOptions {
   final ConnectionMode mode;
 
   /// How often to re-fetch config state when [mode] is [ConnectionMode.polling].
-  /// It has no effect in any other mode.
+  /// It must be positive in that mode and has no effect in any other.
   final Duration pollingInterval;
 
-  /// How long to wait for initialization and context updates.
+  /// How long to wait for initialization and context updates. Must be
+  /// positive.
   ///
   /// The first initialization also reads the app name and version from the
   /// platform, which has its own budget of the same length before the

@@ -56,6 +56,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
     final logger = options?.logger ?? ConsoleLogger();
     final connection = options?.connection ?? const ConnectionOptions();
+    _validateConnection(connection);
     final baseUrl = _resolveBaseUrl(connection.baseUrl);
 
     final transportOptions = TransportOptions(
@@ -551,6 +552,21 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
 
     return baseUrl;
+  }
+
+  static void _validateConnection(ConnectionOptions connection) {
+    if (connection.timeout <= Duration.zero) {
+      throw ConfigDirectorValidationException(
+        "Invalid timeout '${connection.timeout}'. The timeout must be positive.",
+      );
+    }
+    if (connection.mode == ConnectionMode.polling &&
+        connection.pollingInterval <= Duration.zero) {
+      throw ConfigDirectorValidationException(
+        "Invalid polling interval '${connection.pollingInterval}'. The polling "
+        'interval must be positive.',
+      );
+    }
   }
 
   static void _validateSdkKey(String clientSdkKey) {

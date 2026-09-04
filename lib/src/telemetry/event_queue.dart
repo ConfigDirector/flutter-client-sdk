@@ -30,7 +30,11 @@ final class EventQueueSnapshot<T> {
 /// room for new ones, and the number dropped is reported alongside the events
 /// that were kept.
 final class EventQueue<T> {
-  EventQueue({this.limit = 1000});
+  EventQueue({this.limit = 1000}) {
+    if (limit < 1) {
+      throw ArgumentError.value(limit, 'limit', 'must hold at least one event');
+    }
+  }
 
   /// The most events the queue holds before it starts dropping the oldest.
   final int limit;

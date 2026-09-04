@@ -251,6 +251,46 @@ void main() {
       );
     });
 
+    test('rejects a timeout that is not positive', () {
+      expect(
+        () => DefaultConfigDirectorClient(
+          'a-key',
+          options: const ConfigDirectorClientOptions(
+            connection: ConnectionOptions(timeout: Duration.zero),
+          ),
+          transportFactory: (_) => transport,
+        ),
+        throwsA(isA<ConfigDirectorValidationException>()),
+      );
+    });
+
+    test('rejects a polling interval that is not positive when polling', () {
+      expect(
+        () => DefaultConfigDirectorClient(
+          'a-key',
+          options: const ConfigDirectorClientOptions(
+            connection: ConnectionOptions(
+              mode: ConnectionMode.polling,
+              pollingInterval: Duration.zero,
+            ),
+          ),
+          transportFactory: (_) => transport,
+        ),
+        throwsA(isA<ConfigDirectorValidationException>()),
+      );
+    });
+
+    test('ignores the polling interval in the other modes', () {
+      autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.streaming,
+            pollingInterval: Duration.zero,
+          ),
+        ),
+      );
+    });
+
     test('starts out neither ready nor initializing', () {
       final client = autoDispose(createClient());
 

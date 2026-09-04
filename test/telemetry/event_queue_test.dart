@@ -4,6 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('EventQueue', () {
+    test('rejects a limit that cannot hold an event', () {
+      expect(() => EventQueue<String>(limit: 0), throwsArgumentError);
+      expect(() => EventQueue<String>(limit: -1), throwsArgumentError);
+    });
+
     test('starts out empty', () {
       final queue = EventQueue<String>();
 
