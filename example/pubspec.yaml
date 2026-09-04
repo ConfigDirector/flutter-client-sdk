@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  configdirector_flutter_client_sdk: ^0.10.0
+  configdirector_flutter_client_sdk: ^1.0.0
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
