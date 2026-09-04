@@ -20,12 +20,10 @@ final class ConnectionOptions {
   /// updates whenever config state changes in the ConfigDirector dashboard.
   /// With [ConnectionMode.polling] config state is fetched during
   /// initialization and re-fetched every [pollingInterval].
-  /// With [ConnectionMode.oneTime] config state is fetched during
-  /// initialization and on context updates only.
   final ConnectionMode mode;
 
   /// How often to re-fetch config state when [mode] is [ConnectionMode.polling].
-  /// It must be positive in that mode and has no effect in any other.
+  /// It must be positive in that mode and has no effect when streaming.
   final Duration pollingInterval;
 
   /// How long to wait for initialization and context updates. Must be
@@ -37,8 +35,7 @@ final class ConnectionOptions {
   ///
   /// When streaming, the operation may still succeed after it times out, as
   /// long as no unrecoverable errors are encountered. When polling, a fetch
-  /// that timed out is retried on the next polling interval. In one-time mode
-  /// a timed-out operation is not retried.
+  /// that timed out is retried on the next polling interval.
   final Duration timeout;
 
   /// The base URL of the ConfigDirector SDK server. Set this only when routing

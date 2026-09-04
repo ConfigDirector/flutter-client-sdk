@@ -280,7 +280,7 @@ void main() {
       );
     });
 
-    test('ignores the polling interval in the other modes', () {
+    test('ignores the polling interval when streaming', () {
       autoDispose(
         createClient(
           connection: const ConnectionOptions(

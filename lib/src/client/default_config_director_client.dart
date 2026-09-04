@@ -534,7 +534,6 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   ) => switch (mode) {
     ConnectionMode.streaming => StreamingTransport(options),
     ConnectionMode.polling => PollingTransport(options),
-    ConnectionMode.oneTime => OneTimeTransport(options),
   };
 
   static Duration _exponentialRetryDelay(int attempt) =>

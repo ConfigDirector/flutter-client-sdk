@@ -375,44 +375,4 @@ void main() {
 
     expect(configSets, isEmpty);
   });
-
-  group('OneTimeTransport', () {
-    test('fetches once and never polls', () {
-      fakeAsync((async) {
-        final transport = OneTimeTransport(
-          optionsWith(
-            respondWith([http.Response(configSetBody(), 200)]),
-            pollingInterval: const Duration(seconds: 10),
-          ),
-        );
-        addTearDown(transport.dispose);
-
-        unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
-        async.elapse(const Duration(minutes: 10));
-
-        expect(requests.length, 1);
-      });
-    });
-
-    test('fetches again on a context update', () async {
-      final transport = OneTimeTransport(
-        optionsWith(respondWith([http.Response(configSetBody(), 200)])),
-      );
-      addTearDown(transport.dispose);
-
-      await transport.connect(
-        const ConfigDirectorContext(id: 'user-1'),
-        _timeout,
-      );
-      await transport.connect(
-        const ConfigDirectorContext(id: 'user-2'),
-        _timeout,
-      );
-
-      expect(requests.length, 2);
-      expect((jsonDecode(requests.last.body) as Map)['givenContext'], {
-        'id': 'user-2',
-      });
-    });
-  });
 }

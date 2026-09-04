@@ -11,20 +11,14 @@ import 'transport.dart';
 /// A [Transport] that fetches config state on connect and then re-fetches it on
 /// a fixed interval.
 ///
-/// A polling interval of [Duration.zero] or less disables the interval, which is
-/// how [OneTimeTransport] fetches config state only on connect.
-///
 /// [connect] never throws: a transient failure is logged and polling goes on,
 /// and an unrecoverable one is logged and polling is not started.
 class PollingTransport implements Transport {
-  PollingTransport(TransportOptions options, {Duration? pollingInterval})
+  PollingTransport(TransportOptions options)
     : _options = options,
       _logger = options.logger,
       _url = options.baseUrl.resolve('client/polling/v1'),
-      _pollingInterval =
-          pollingInterval ??
-          options.pollingInterval ??
-          const Duration(seconds: 60),
+      _pollingInterval = options.pollingInterval ?? const Duration(seconds: 60),
       _httpClient = options.httpClient ?? http.Client(),
       _ownsHttpClient = options.httpClient == null;
 
@@ -77,10 +71,6 @@ class PollingTransport implements Transport {
   }
 
   void _schedulePolling(ConfigDirectorContext context, Duration timeout) {
-    if (_pollingInterval <= Duration.zero) {
-      return;
-    }
-
     _pollingTimer = Timer.periodic(_pollingInterval, (_) async {
       try {
         await _fetchConfigs(context, timeout);
@@ -211,10 +201,4 @@ class PollingTransport implements Transport {
       _httpClient.close();
     }
   }
-}
-
-/// A [Transport] that fetches config state on connect only, never polling for
-/// updates afterwards.
-final class OneTimeTransport extends PollingTransport {
-  OneTimeTransport(super.options) : super(pollingInterval: Duration.zero);
 }

@@ -15,6 +15,12 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
   `Exception`, and Dart reserves the `Error` suffix for programming errors that are not meant to
   be caught.
 
+### Removed
+
+- **Breaking:** `ConnectionMode.oneTime`. The client connects by streaming or polling only. To
+  fetch config state once per context, poll with a long `pollingInterval` and call
+  `updateContext` when it should be re-fetched.
+
 ### Fixed
 
 - A streaming update whose fields have unexpected types is logged and skipped instead of

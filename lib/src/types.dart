@@ -355,7 +355,4 @@ enum ConnectionMode {
 
   /// Fetches config state during initialization and then on a fixed interval.
   polling,
-
-  /// Fetches config state during initialization and on context updates only.
-  oneTime,
 }
