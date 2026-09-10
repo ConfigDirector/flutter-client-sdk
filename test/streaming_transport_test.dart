@@ -237,6 +237,27 @@ void main() {
     expect(requestedRetryDelays, [const Duration(milliseconds: 1)]);
   });
 
+  test('retries after a rate limit response', () async {
+    var attempts = 0;
+    final client = MockClient.streaming((request, _) async {
+      requests.add(request);
+      attempts++;
+      if (attempts == 1) {
+        return http.StreamedResponse(const Stream<List<int>>.empty(), 429);
+      }
+      final body = StreamController<List<int>>();
+      bodies.add(body);
+      return http.StreamedResponse(body.stream, 200);
+    });
+    final transport = StreamingTransport(optionsWith(client));
+    addTearDown(transport.dispose);
+
+    await transport.connect(const ConfigDirectorContext(), _timeout);
+
+    expect(attempts, 2);
+    expect(requestedRetryDelays, [const Duration(milliseconds: 1)]);
+  });
+
   test('returns once the timeout elapses without failing', () async {
     final client = MockClient.streaming((request, _) {
       requests.add(request);

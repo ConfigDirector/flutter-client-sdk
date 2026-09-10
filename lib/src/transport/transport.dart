@@ -74,6 +74,8 @@ abstract interface class Transport {
 }
 
 /// Statuses in the 4xx range mean the request itself is wrong (an invalid SDK
-/// key, for instance), so retrying it would fail the same way.
+/// key, for instance), so retrying it would fail the same way. A 429 is the
+/// exception: the request is fine, there were just too many of them, so
+/// retrying later is expected to succeed.
 bool isStatusFatal(int? status) =>
-    status != null && status >= 400 && status < 500;
+    status != null && status >= 400 && status < 500 && status != 429;

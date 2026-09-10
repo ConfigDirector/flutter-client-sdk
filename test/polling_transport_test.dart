@@ -268,6 +268,30 @@ void main() {
     });
   });
 
+  test('keeps polling after a rate limit response', () {
+    fakeAsync((async) {
+      final transport = PollingTransport(
+        optionsWith(
+          respondWith([
+            http.Response('too many requests', 429),
+            http.Response(configSetBody(), 200),
+          ]),
+          pollingInterval: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(transport.dispose);
+
+      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      async.elapse(const Duration(seconds: 11));
+
+      expect(
+        logger.messages,
+        contains(contains('The initial fetch failed, will keep polling')),
+      );
+      expect(requests.length, 2);
+    });
+  });
+
   test('stops polling after an unrecoverable failure', () {
     fakeAsync((async) {
       final transport = PollingTransport(

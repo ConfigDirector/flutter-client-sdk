@@ -232,6 +232,17 @@ void main() {
     expect(logger.messages, contains(contains('fatal status response (401)')));
   });
 
+  test('keeps sending after a rate limit response', () async {
+    final reporter = reporterWith((_) => http.Response('slow down', 429));
+
+    final response = await reporter.report(requestOf([evaluation()]));
+    await reporter.report(requestOf([evaluation()]));
+
+    expect(response.success, isFalse);
+    expect(response.fatalError, isFalse);
+    expect(requests, hasLength(2));
+  });
+
   test('keeps sending after a server error', () async {
     final reporter = reporterWith((_) => http.Response('', 503));
 
