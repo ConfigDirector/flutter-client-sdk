@@ -8,6 +8,12 @@ before tagging. See [Releasing](CONTRIBUTING.md#releasing).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-17
+
+### Fixed
+
+- HTTP 429 response codes from the SDK server are no longer treated as a fatal error. These need to be handled as transient errors so the client continues to retry and reconnects once the rate limit is cleared.
+
 ## [1.0.0] - 2026-09-04
 
 ### Changed
