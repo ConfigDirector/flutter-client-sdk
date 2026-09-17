@@ -3,9 +3,6 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The publish workflow refuses a tag whose version has no section in this file, so add the section
-before tagging. See [Releasing](CONTRIBUTING.md#releasing).
-
 ## [Unreleased]
 
 ## [1.1.0] - 2026-09-17
