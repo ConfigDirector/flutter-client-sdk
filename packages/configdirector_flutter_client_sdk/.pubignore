@@ -1,8 +1,9 @@
 # Files excluded from the published pub.dev archive.
 #
-# A `.pubignore` replaces the `.gitignore` in its own directory for publishing
-# purposes, so this file has to repeat the root `.gitignore` entries as well as
-# the publish-only exclusions below. Verify with `flutter pub publish --dry-run`.
+# A `.pubignore` replaces only a `.gitignore` in its own directory, and this
+# package has none: the repository root `.gitignore` still applies, so only the
+# publish-only exclusions are listed here. Verify with
+# `flutter pub publish --dry-run`.
 #
 # This is a gitignore-syntax file, not Markdown: the `*` globs below are
 # patterns, not emphasis. See .vscode/settings.json for the file association
@@ -27,41 +28,8 @@
 # The SDK's own test suite. Consumers never run it.
 /test/
 
-# Repository tooling: version-sync script, git hooks, validation and format
-# scripts. Only meaningful when working on the SDK itself.
+# Package tooling: the version-sync script. Only meaningful when working on the
+# SDK itself.
 /tool/
-/format.sh
-/.github/
 /.metadata
 /configdirector_flutter_client_sdk.iml
-
-# --- Mirrors the root .gitignore ---------------------------------------------
-
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.buildlog/
-.history
-.svn/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-.vscode/
-.claude/
-
-# Flutter/Dart/Pub related
-/pubspec.lock
-**/doc/api/
-.dart_tool/
-.flutter-plugins-dependencies
-/build/
-/coverage/

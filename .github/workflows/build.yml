@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  analyze:
-    name: analyze
+  format:
+    name: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -27,32 +27,57 @@ jobs:
           channel: any
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
-
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed --language-version=latest .
+
+  analyze:
+    name: analyze (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - configdirector_flutter_client_sdk
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: .fvmrc
+          channel: any
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Analyze
         run: flutter analyze --fatal-infos
 
       - name: Test example app
         run: flutter test
-        working-directory: example
+        working-directory: packages/${{ matrix.package }}/example
 
   test_by_platform:
     # The SDK compiles for both the Dart VM and the web, and the two disagree
     # about numbers, platform APIs, and conditional imports, so each gets a run.
-    name: test (${{ matrix.os }}, ${{ matrix.platform }})
+    name: test (${{ matrix.package }}, ${{ matrix.os }}, ${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            platform: tester
-          - os: ubuntu-latest
-            platform: chrome
+        package:
+          - configdirector_flutter_client_sdk
+        os:
+          - ubuntu-latest
+        platform:
+          - tester
+          - chrome
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.package }}
     steps:
       - uses: actions/checkout@v5
 
@@ -73,16 +98,21 @@ jobs:
         run: flutter test --platform ${{ matrix.platform }}
 
   test_by_version:
-    name: "test (dart: ${{ matrix.dart }}, flutter: ${{ matrix.flutter }})"
+    name: "test (${{ matrix.package }}, dart: ${{ matrix.dart }}, flutter: ${{ matrix.flutter }})"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - dart: stable
+          - package: configdirector_flutter_client_sdk
+            dart: stable
             flutter: 3.22.0
-          - dart: stable
+          - package: configdirector_flutter_client_sdk
+            dart: stable
             flutter: 3.44.8
+    defaults:
+      run:
+        working-directory: packages/${{ matrix.package }}
     steps:
       - uses: actions/checkout@v5
 

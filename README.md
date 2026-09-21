@@ -1,33 +1,18 @@
-# ConfigDirector Flutter SDK
+# ConfigDirector Flutter and Dart SDKs Monorepo
 
-[![CI][ci-badge]][ci] [![pub.dev][pub-badge]][pub]
+[![Actions Status][ci-badge]][ci]
 
-Flutter SDK for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
+Flutter and Dart SDKs for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
 
-## Install
+Each package has its own README with an install command and a first example, and the [quickstart](https://docs.configdirector.com/getting-started/quickstart) walks through the first flag end to end.
 
-```bash
-flutter pub add configdirector_flutter_client_sdk
-```
+| Package                                                                                        | pub.dev                                           | Docs                                                |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------- |
+| [configdirector_flutter_client_sdk](packages/configdirector_flutter_client_sdk/README.md)      | [![pub.dev][flutter-sdk-pub-badge]][flutter-sdk-pub-link] | https://docs.configdirector.com/sdks/mobile/flutter |
 
-## Retrieve a value
+## Contributing
 
-```dart
-import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
-
-final client = ConfigDirectorClient(clientSdkKey: 'YOUR-CLIENT-SDK-KEY');
-await client.initialize();
-
-final darkMode = client.getValue('dark-mode', false);
-```
-
-Full details are in the [official documentation](https://docs.configdirector.com/sdks/mobile/flutter).
-
-## Documentation
-
-Refer to the [official documentation for the Flutter SDK](https://docs.configdirector.com/sdks/mobile/flutter).
-
-There is also [a quickstart guide for ConfigDirector and any of our SDKs](https://docs.configdirector.com/getting-started/quickstart).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for building, testing and releasing the packages.
 
 ## Getting Help
 
@@ -37,5 +22,5 @@ There is also [a quickstart guide for ConfigDirector and any of our SDKs](https:
 [//]: # "links"
 [ci-badge]: https://github.com/ConfigDirector/flutter-client-sdk/actions/workflows/build.yml/badge.svg
 [ci]: https://github.com/ConfigDirector/flutter-client-sdk/actions/workflows/build.yml
-[pub-badge]: https://img.shields.io/pub/v/configdirector_flutter_client_sdk
-[pub]: https://pub.dev/packages/configdirector_flutter_client_sdk
+[flutter-sdk-pub-badge]: https://img.shields.io/pub/v/configdirector_flutter_client_sdk
+[flutter-sdk-pub-link]: https://pub.dev/packages/configdirector_flutter_client_sdk

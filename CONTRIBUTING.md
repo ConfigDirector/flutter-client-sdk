@@ -1,5 +1,21 @@
 # Contributing
 
+## Layout
+
+This repository hosts every ConfigDirector Flutter and Dart package, one directory each under
+[packages/](packages/). A package's directory is named after the package on pub.dev, and holds
+everything that is published with it: its `pubspec.yaml`, `README.md`, `CHANGELOG.md`, `LICENSE`,
+sources, tests and sample app.
+
+| Package                                                                         | What it is             |
+| ------------------------------------------------------------------------------- | ---------------------- |
+| [configdirector_flutter_client_sdk](packages/configdirector_flutter_client_sdk) | The Flutter client SDK |
+
+What is shared sits at the root: the Flutter pin in [.fvmrc](.fvmrc), the
+[validation](tool/validate.sh) and [format](format.sh) scripts, the git hooks and the workflows.
+The packages are deliberately not a pub workspace. Workspaces need Dart 3.6, and the client SDK
+supports Dart 3.4.
+
 ## Development
 
 The Flutter version is pinned in [.fvmrc](.fvmrc), for CI and workstations alike, because
@@ -9,10 +25,11 @@ matches:
 ```sh
 fvm install
 fvm use
+cd packages/configdirector_flutter_client_sdk
 fvm flutter pub get
 ```
 
-Any Flutter from 3.22.0 up builds and tests the package. Only formatting depends on the pin.
+Any Flutter from 3.22.0 up builds and tests the client SDK. Only formatting depends on the pin.
 
 ## Building and testing
 
@@ -20,22 +37,23 @@ Any Flutter from 3.22.0 up builds and tests the package. Only formatting depends
 ./tool/validate.sh
 ```
 
-That runs what the `build` workflow runs: `pub get` for the package and the sample app,
-the formatting check, `flutter analyze --fatal-infos`, the package tests on the Dart VM, the sample
-app's tests, and the package tests in Chrome when a Chrome is found. Pass `--no-web` to skip the
-Chrome run and `--fix` to format before checking.
+Run from the repository root, that runs what the `build` workflow runs: the formatting check for
+the whole repository, then for every package `pub get` for the package and its sample app,
+`flutter analyze --fatal-infos`, the package tests on the Dart VM, the sample app's tests, and the
+package tests in Chrome when a Chrome is found. Pass `--no-web` to skip the Chrome run and `--fix`
+to format before checking.
 
-Narrower loops while working:
+Narrower loops while working, from a package's directory:
 
 ```sh
 flutter test                                  # the package's tests
 flutter test test/client_test.dart            # one file
 flutter test --platform chrome                # the web build of the tests
 flutter analyze --fatal-infos
-./format.sh                                   # format through the pinned SDK
+../../format.sh                               # format the repository through the pinned SDK
 ```
 
-The formatter is told `--language-version=latest` everywhere. The package targets Dart 3.4 to
+The formatter is told `--language-version=latest` everywhere. The client SDK targets Dart 3.4 to
 support Flutter 3.22, and left alone `dart format` would rewrite everything into the pre-3.7 short
 style. Every invocation has to pass the same flag, which is why `format.sh` and `validate.sh` exist
 rather than a bare `dart format .`.
@@ -63,44 +81,60 @@ It runs `tool/validate.sh` against the working tree before every push. Bypass a 
 
 ## CI
 
-[build.yml](.github/workflows/build.yml) runs on every push and pull request: formatting, analysis
-and the sample app's tests on the pinned Flutter, the package tests on the VM and in Chrome, and the
-package tests on Flutter 3.22.0, the minimum supported version. That last job catches SDK-pinned
-dependency conflicts and syntax that only a newer analyzer accepts, and it is the one thing
-`validate.sh` cannot reproduce locally.
+[build.yml](.github/workflows/build.yml) runs on every push and pull request: formatting for the
+whole repository, then per package analysis and the sample app's tests on the pinned Flutter, the
+package tests on the VM and in Chrome, and the package tests on the minimum Flutter the package
+supports, 3.22.0 for the client SDK. That last job catches SDK-pinned dependency conflicts and
+syntax that only a newer analyzer accepts, and it is the one thing `validate.sh` cannot reproduce
+locally. A new package is added to each job's matrix.
 
 ## Sample app
 
-[example/](example/) is a single-screen app that pub.dev renders as the package's Example tab. It
-depends on the *published* SDK, the way a consumer does, so it lags a release rather than tracking
-the working tree. See [its README](example/README.md) for running it against your own project.
+[example/](packages/configdirector_flutter_client_sdk/example/) in the client SDK is a single-screen
+app that pub.dev renders as the package's Example tab. It depends on the *published* SDK, the way a
+consumer does, so it lags a release rather than tracking the working tree. See [its
+README](packages/configdirector_flutter_client_sdk/example/README.md) for running it against your
+own project.
 
 ## Releasing
 
-Publishing is not reversible, so the workflow checks the tag, the pubspec, `sdkVersion` and the
-changelog against each other before uploading.
+Packages are released one at a time, each on its own version. Publishing is not reversible, so the
+workflow checks the tag, the pubspec, `sdkVersion` and the changelog against each other before
+uploading.
 
-1. Bump `version` in [pubspec.yaml](pubspec.yaml).
+The steps below are for the client SDK, from [its
+directory](packages/configdirector_flutter_client_sdk).
+
+1. Bump `version` in [pubspec.yaml](packages/configdirector_flutter_client_sdk/pubspec.yaml).
 2. Run `dart run tool/update_sdk_version.dart` to copy it into
-   [lib/src/constants.dart](lib/src/constants.dart). `sdkVersion` is sent to the server with every
-   telemetry batch, and `test/version_sync_test.dart` fails if the two drift.
-3. Rename the `## [Unreleased]` heading in [CHANGELOG.md](CHANGELOG.md) to
+   [lib/src/constants.dart](packages/configdirector_flutter_client_sdk/lib/src/constants.dart).
+   `sdkVersion` is sent to the server with every telemetry batch, and `test/version_sync_test.dart`
+   fails if the two drift.
+3. Rename the `## [Unreleased]` heading in
+   [CHANGELOG.md](packages/configdirector_flutter_client_sdk/CHANGELOG.md) to
    `## [X.Y.Z] - YYYY-MM-DD`, and start a fresh empty `## [Unreleased]` above it.
-4. Commit, tag that commit `vX.Y.Z`, and push the tag:
+4. Commit, tag that commit `<package>-vX.Y.Z`, and push the tag:
 
    ```sh
-   git tag vX.Y.Z && git push origin vX.Y.Z
+   git tag configdirector_flutter_client_sdk-vX.Y.Z
+   git push origin configdirector_flutter_client_sdk-vX.Y.Z
    ```
 
-[publish.yml](.github/workflows/publish.yml) does the rest. It verifies the tag matches the pubspec
-version and `sdkVersion`, verifies the changelog has a heading for the version, runs analysis and
-the tests, then publishes to pub.dev. Authentication uses pub.dev's automated publishing: GitHub
-mints a short-lived OIDC token for the run and pub.dev accepts it, so there is no secret to store or
-rotate. A tag with a hyphen in it, such as `v1.0.0-rc.1`, publishes as a prerelease.
+The tag names the package it releases, which is how one workflow serves every package, and the
+package's automated publishing settings on pub.dev use the matching tag pattern,
+`configdirector_flutter_client_sdk-v{{version}}`. Releases up to 1.1.0 were tagged `vX.Y.Z`,
+before the repository held more than one package.
 
-Run the workflow by hand from the Actions tab to rehearse a release. A manual run does everything
-except the upload, ending in `flutter pub publish --dry-run`.
+[publish.yml](.github/workflows/publish.yml) does the rest. It takes the package from the tag,
+verifies the tag matches the pubspec version and `sdkVersion`, verifies the changelog has a heading
+for the version, runs analysis and the tests, then publishes to pub.dev. Authentication uses
+pub.dev's automated publishing: GitHub mints a short-lived OIDC token for the run and pub.dev
+accepts it, so there is no secret to store or rotate. A version with a hyphen in it, tagged for
+example `configdirector_flutter_client_sdk-v1.0.0-rc.1`, publishes as a prerelease.
+
+Run the workflow by hand from the Actions tab to rehearse a release, naming the package. A manual
+run does everything except the upload, ending in `flutter pub publish --dry-run`.
 
 Once the version is live on pub.dev, bump the sample app's dependency in
-[example/pubspec.yaml](example/pubspec.yaml). It deliberately lags the SDK: naming a version that is
-not published yet leaves it unresolvable.
+[example/pubspec.yaml](packages/configdirector_flutter_client_sdk/example/pubspec.yaml). It
+deliberately lags the SDK: naming a version that is not published yet leaves it unresolvable.

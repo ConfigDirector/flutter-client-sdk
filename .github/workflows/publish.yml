@@ -1,16 +1,26 @@
 name: Publish
 
-# Publishes to pub.dev when a `v<version>` tag is pushed, using pub.dev's
-# automated publishing: GitHub mints a short-lived OIDC token for this workflow
-# and pub.dev accepts it in place of a long-lived credential, so there is no
-# secret to store or rotate.
+# Publishes a package to pub.dev when a `<package>-v<version>` tag is pushed,
+# using pub.dev's automated publishing: GitHub mints a short-lived OIDC token
+# for this workflow and pub.dev accepts it in place of a long-lived credential,
+# so there is no secret to store or rotate. The tag names the package and the
+# version it is releasing:
 #
-# Releasing:
+#   configdirector_flutter_client_sdk-v1.1.0
+#
+# One workflow serves every package, since a package's directory under
+# packages/ is its pub.dev name. Each package's automated publishing settings on
+# pub.dev must use the tag pattern `<package>-v{{version}}`. Releases before
+# this scheme were tagged v1.1.0, which this workflow deliberately no longer
+# matches.
+#
+# Releasing, from the package's directory:
 #
 #   1. Bump `version` in pubspec.yaml.
-#   2. `dart run tool/update_sdk_version.dart` to match lib/src/constants.dart.
+#   2. `dart run tool/update_sdk_version.dart` to match lib/src/constants.dart,
+#      for a package that has one.
 #   3. Add the release to CHANGELOG.md.
-#   4. Commit, then `git tag v0.1.0 && git push origin v0.1.0`.
+#   4. Commit, then `git tag <package>-v0.1.0 && git push origin <package>-v0.1.0`.
 #
 # `workflow_dispatch` runs everything except the upload, which is a way to
 # rehearse a release without one.
@@ -18,9 +28,14 @@ name: Publish
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
+      - "*-v[0-9]+.[0-9]+.[0-9]+"
+      - "*-v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to rehearse, e.g. configdirector_flutter_client_sdk. Publishes nothing."
+        required: true
+        default: configdirector_flutter_client_sdk
 
 permissions:
   contents: read
@@ -46,36 +61,75 @@ jobs:
           channel: any
           cache: true
 
+      # Package names cannot contain a hyphen, so everything before the first
+      # `-v` is the package and everything after it is the version.
+      - name: Resolve the package being released
+        env:
+          DISPATCH_PACKAGE: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            package="${GITHUB_REF_NAME%%-v*}"
+          else
+            package="$DISPATCH_PACKAGE"
+          fi
+
+          case "$package" in
+            "" | *[!a-z0-9_]*)
+              echo "::error::'$package' is not a package name."
+              exit 1
+              ;;
+          esac
+          if [ ! -f "packages/$package/pubspec.yaml" ]; then
+            echo "::error::No package at packages/$package."
+            exit 1
+          fi
+
+          echo "PACKAGE=$package" >> "$GITHUB_ENV"
+          echo "PACKAGE_DIR=packages/$package" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: flutter pub get
+        working-directory: ${{ env.PACKAGE_DIR }}
 
       # The tag is what a consumer sees, the pubspec is what pub.dev records and
       # `sdkVersion` is what the SDK reports to the server. Publishing is not
       # reversible, so all three are checked before the upload rather than after.
       - name: Check the tag matches the package version
         if: github.event_name == 'push'
+        working-directory: ${{ env.PACKAGE_DIR }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${GITHUB_REF_NAME#"$PACKAGE"-v}"
+          name="$(sed -n 's/^name:[[:space:]]*//p' pubspec.yaml)"
           pubspec="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)"
-          sdk="$(sed -n "s/^const String sdkVersion = '\(.*\)';\$/\1/p" lib/src/constants.dart)"
 
-          echo "tag=$tag pubspec=$pubspec constants=$sdk"
+          echo "package=$PACKAGE name=$name tag=$tag pubspec=$pubspec"
 
+          if [ "$name" != "$PACKAGE" ]; then
+            echo "::error::packages/$PACKAGE holds a package named $name."
+            exit 1
+          fi
           if [ "$tag" != "$pubspec" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match pubspec version $pubspec."
             exit 1
           fi
-          if [ "$sdk" != "$pubspec" ]; then
-            echo "::error::sdkVersion ($sdk) does not match pubspec version ($pubspec). Run: dart run tool/update_sdk_version.dart"
-            exit 1
+
+          if [ -f lib/src/constants.dart ]; then
+            sdk="$(sed -n "s/^const String sdkVersion = '\(.*\)';\$/\1/p" lib/src/constants.dart)"
+            echo "constants=$sdk"
+            if [ "$sdk" != "$pubspec" ]; then
+              echo "::error::sdkVersion ($sdk) does not match pubspec version ($pubspec). Run: dart run tool/update_sdk_version.dart"
+              exit 1
+            fi
           fi
 
       - name: Check CHANGELOG has an entry for this version
         if: github.event_name == 'push'
+        working-directory: ${{ env.PACKAGE_DIR }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          version="${GITHUB_REF_NAME#"$PACKAGE"-v}"
           if ! grep -qE "^#+[[:space:]]*\[?${version//./\\.}\]?([[:space:]]|$)" CHANGELOG.md; then
             echo "::error::No CHANGELOG.md heading found for $version."
             exit 1
@@ -83,9 +137,11 @@ jobs:
 
       - name: Analyze
         run: flutter analyze --fatal-infos
+        working-directory: ${{ env.PACKAGE_DIR }}
 
       - name: Test
         run: flutter test
+        working-directory: ${{ env.PACKAGE_DIR }}
 
       - name: Obtain a pub.dev credential from the GitHub OIDC provider
         run: |
@@ -103,7 +159,9 @@ jobs:
       - name: Publish (dry run)
         if: github.event_name == 'workflow_dispatch'
         run: flutter pub publish --dry-run
+        working-directory: ${{ env.PACKAGE_DIR }}
 
       - name: Publish
         if: github.event_name == 'push'
         run: flutter pub publish --force
+        working-directory: ${{ env.PACKAGE_DIR }}

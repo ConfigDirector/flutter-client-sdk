@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Runs the checks the `build` workflow runs, so a push does not have to wait on
-# CI to find out. From the package root:
+# Runs the checks the `build` workflow runs, for every package under packages/,
+# so a push does not have to wait on CI to find out. From the repository root:
 #
 #   ./tool/validate.sh            # everything
 #   ./tool/validate.sh --fix      # apply formatting first, then check
@@ -51,15 +51,31 @@ check() {
   return 1
 }
 
-check "pub get" flutter pub get
+packages=()
+for pubspec in packages/*/pubspec.yaml; do
+  [[ -f "$pubspec" ]] && packages+=("$(basename "$(dirname "$pubspec")")")
+done
 
-# The sample app under example/ is a package of its own, and `flutter analyze`
-# descends into it, so its dependencies have to be resolved as well or every
-# import in it reads as unresolved.
-check "pub get (example)" flutter pub get --directory example
+if [[ ${#packages[@]} -eq 0 ]]; then
+  echo "No packages found under packages/." >&2
+  exit 1
+fi
 
-# The formatter picks its style from the package's language version, and this
-# package targets Dart 3.4 to support Flutter 3.22. Left alone, `dart format`
+# The `flutter` tool takes the package to work on from the working directory.
+in_package() {
+  local package="$1"
+  shift
+  (cd "packages/$package" && "$@")
+}
+
+in_example() {
+  local package="$1"
+  shift
+  (cd "packages/$package/example" && "$@")
+}
+
+# The formatter picks its style from a package's language version, and the
+# client SDK targets Dart 3.4 to support Flutter 3.22. Left alone, `dart format`
 # would rewrite the whole repository into the pre-3.7 short style. Pinning the
 # language version keeps the tall style without raising the SDK floor; it
 # affects layout only, never which syntax is legal. Every invocation below must
@@ -75,26 +91,41 @@ else
     echo 'Fix with: ./tool/validate.sh --fix'
 fi
 
-check "analyze" flutter analyze --fatal-infos
-
-check "test (vm)" flutter test
-
-# The `flutter` tool takes the package to test from the working directory, so
-# the sample app's tests have to be run from inside it.
-example_tests() { (cd example && flutter test); }
-check "test (example)" example_tests
-
 # `flutter test --platform chrome` needs a browser the Flutter tool can find.
+web_skip_reason=""
 if [[ $run_web -eq 0 ]]; then
-  skipped+=("test (chrome) -- skipped via --no-web")
-elif [[ -n "${CHROME_EXECUTABLE:-}" ]] ||
-  command -v google-chrome >/dev/null 2>&1 ||
-  command -v chromium >/dev/null 2>&1 ||
-  [[ -d "/Applications/Google Chrome.app" ]]; then
-  check "test (chrome)" flutter test --platform chrome
-else
-  skipped+=("test (chrome) -- no Chrome found; set CHROME_EXECUTABLE")
+  web_skip_reason="skipped via --no-web"
+elif [[ -z "${CHROME_EXECUTABLE:-}" ]] &&
+  ! command -v google-chrome >/dev/null 2>&1 &&
+  ! command -v chromium >/dev/null 2>&1 &&
+  [[ ! -d "/Applications/Google Chrome.app" ]]; then
+  web_skip_reason="no Chrome found; set CHROME_EXECUTABLE"
 fi
+
+for package in "${packages[@]}"; do
+  check "$package: pub get" in_package "$package" flutter pub get
+
+  # A sample app under example/ is a package of its own, and `flutter analyze`
+  # descends into it, so its dependencies have to be resolved as well or every
+  # import in it reads as unresolved.
+  if [[ -f "packages/$package/example/pubspec.yaml" ]]; then
+    check "$package: pub get (example)" in_example "$package" flutter pub get
+  fi
+
+  check "$package: analyze" in_package "$package" flutter analyze --fatal-infos
+
+  check "$package: test (vm)" in_package "$package" flutter test
+
+  if [[ -d "packages/$package/example/test" ]]; then
+    check "$package: test (example)" in_example "$package" flutter test
+  fi
+
+  if [[ -n "$web_skip_reason" ]]; then
+    skipped+=("$package: test (chrome) -- $web_skip_reason")
+  else
+    check "$package: test (chrome)" in_package "$package" flutter test --platform chrome
+  fi
+done
 
 printf '\n'
 for entry in "${skipped[@]:-}"; do
