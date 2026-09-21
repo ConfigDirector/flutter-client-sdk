@@ -1,0 +1,23 @@
+name: configdirector_openfeature_flutter_sample_app
+description: "Sample app for the ConfigDirector OpenFeature provider for Flutter."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+  flutter: ">=3.44.2"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  configdirector_openfeature_flutter_provider:
+    path: ../
+  openfeature_dart_client_sdk: ^0.0.1-beta.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

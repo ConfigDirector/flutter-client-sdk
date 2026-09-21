@@ -38,6 +38,7 @@ jobs:
       matrix:
         package:
           - configdirector_flutter_client_sdk
+          - configdirector_openfeature_flutter_provider
     defaults:
       run:
         working-directory: packages/${{ matrix.package }}
@@ -70,6 +71,7 @@ jobs:
       matrix:
         package:
           - configdirector_flutter_client_sdk
+          - configdirector_openfeature_flutter_provider
         os:
           - ubuntu-latest
         platform:
@@ -110,6 +112,9 @@ jobs:
           - package: configdirector_flutter_client_sdk
             dart: stable
             flutter: 3.44.8
+          - package: configdirector_openfeature_flutter_provider
+            dart: stable
+            flutter: 3.44.2
     defaults:
       run:
         working-directory: packages/${{ matrix.package }}

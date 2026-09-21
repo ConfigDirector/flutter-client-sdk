@@ -7,9 +7,15 @@ This repository hosts every ConfigDirector Flutter and Dart package, one directo
 everything that is published with it: its `pubspec.yaml`, `README.md`, `CHANGELOG.md`, `LICENSE`,
 sources, tests and sample app.
 
-| Package                                                                         | What it is             |
-| ------------------------------------------------------------------------------- | ---------------------- |
-| [configdirector_flutter_client_sdk](packages/configdirector_flutter_client_sdk) | The Flutter client SDK |
+| Package                                                                                             | What it is                                                            |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| [configdirector_flutter_client_sdk](packages/configdirector_flutter_client_sdk)                     | The Flutter client SDK                                                |
+| [configdirector_openfeature_flutter_provider](packages/configdirector_openfeature_flutter_provider) | OpenFeature provider wrapping the client SDK. Not released: see below |
+
+The OpenFeature provider builds on `openfeature_dart_client_sdk`, the static-context client SDK,
+which is in its first beta. Until that settles the provider is marked `publish_to: "none"` and is
+left out of the root README. It depends on the *published* client SDK rather than the one in the
+working tree, the way a consumer does, and needs Dart 3.12.2, so Flutter 3.44.2 or later.
 
 What is shared sits at the root: the Flutter pin in [.fvmrc](.fvmrc), the
 [validation](tool/validate.sh) and [format](format.sh) scripts, the git hooks and the workflows.

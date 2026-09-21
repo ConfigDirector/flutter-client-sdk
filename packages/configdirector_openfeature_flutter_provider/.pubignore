@@ -1,0 +1,12 @@
+# Files excluded from the published pub.dev archive.
+#
+# A `.pubignore` replaces only a `.gitignore` in its own directory, and this
+# package has none: the repository root `.gitignore` still applies, so only the
+# publish-only exclusions are listed here. Verify with
+# `flutter pub publish --dry-run`.
+
+# The provider's own test suite. Consumers never run it.
+/test/
+
+/example/analysis_options.yaml
+/.metadata

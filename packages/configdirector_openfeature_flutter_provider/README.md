@@ -1,0 +1,76 @@
+# ConfigDirector OpenFeature Provider for Flutter
+
+[![CI][ci-badge]][ci] [![pub.dev][pub-badge]][pub]
+
+[OpenFeature](https://openfeature.dev) provider for [ConfigDirector](https://www.configdirector.com), remote config and feature flags with typed values, JSON Schema validation, and safe renames of live flags. Start free, no card required.
+
+It plugs the [ConfigDirector Flutter SDK](https://pub.dev/packages/configdirector_flutter_client_sdk) into the [OpenFeature Dart client SDK](https://pub.dev/packages/openfeature_dart_client_sdk), the static-context SDK for client applications. It does not work with the OpenFeature Dart server SDK.
+
+## Install
+
+```bash
+flutter pub add configdirector_openfeature_flutter_provider openfeature_dart_client_sdk
+```
+
+The OpenFeature Dart client SDK requires Dart 3.12.2, which ships with Flutter 3.44.2 and later.
+
+## Retrieve a value
+
+```dart
+import 'package:configdirector_openfeature_flutter_provider/configdirector_openfeature_flutter_provider.dart';
+import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk.dart';
+
+await OpenFeatureAPI.instance.setEvaluationContextAndWait(
+  EvaluationContext(targetingKey: 'user-123'),
+);
+await OpenFeatureAPI.instance.setProviderAndWait(
+  ConfigDirectorProvider(clientSdkKey: 'YOUR-CLIENT-SDK-KEY'),
+);
+
+final client = OpenFeatureAPI.instance.getClient();
+final darkMode = client.getBooleanValue('dark-mode', false);
+```
+
+`setProviderAndWait` throws an `OpenFeatureException` when ConfigDirector cannot be reached in time. The provider keeps trying to connect and reports ready once it succeeds; until then flags resolve to their default values.
+
+## Evaluation context
+
+The OpenFeature evaluation context is sent to ConfigDirector as the user's context:
+
+| OpenFeature                  | ConfigDirector |
+| ---------------------------- | -------------- |
+| `targetingKey`, or else `id` | `id`           |
+| `name`                       | `name`         |
+| `traits`, a structure        | `traits`       |
+| `anonymous`, a boolean       | `anonymous`    |
+
+Any other attribute is ignored. Put the values your targeting rules depend on inside `traits`:
+
+```dart
+await OpenFeatureAPI.instance.setEvaluationContextAndWait(
+  EvaluationContext(
+    targetingKey: 'user-123',
+    attributes: {
+      'name': 'Ada',
+      'traits': {'plan': 'pro'},
+    },
+  ),
+);
+```
+
+## Documentation
+
+Refer to the [official documentation for the Flutter SDK](https://docs.configdirector.com/sdks/mobile/flutter) for the options the provider accepts, and to the [OpenFeature Dart client SDK reference](https://openfeature.dev/docs/reference/sdks/client/dart) for evaluating flags, handling events and writing hooks.
+
+There is also [a quickstart guide for ConfigDirector and any of our SDKs](https://docs.configdirector.com/getting-started/quickstart).
+
+## Getting Help
+
+- [Ask a question in Discussions](https://github.com/orgs/ConfigDirector/discussions)
+- [Contact support](https://www.configdirector.com/support)
+
+[//]: # "links"
+[ci-badge]: https://github.com/ConfigDirector/flutter-client-sdk/actions/workflows/build.yml/badge.svg
+[ci]: https://github.com/ConfigDirector/flutter-client-sdk/actions/workflows/build.yml
+[pub-badge]: https://img.shields.io/pub/v/configdirector_openfeature_flutter_provider
+[pub]: https://pub.dev/packages/configdirector_openfeature_flutter_provider
