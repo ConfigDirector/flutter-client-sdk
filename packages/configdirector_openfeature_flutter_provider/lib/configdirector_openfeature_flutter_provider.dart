@@ -26,4 +26,4 @@ export 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_
         ConsoleLogger,
         LogMessageDecorator;
 
-export 'src/config_director_provider.dart';
+export 'src/config_director_provider.dart' show ConfigDirectorProvider;

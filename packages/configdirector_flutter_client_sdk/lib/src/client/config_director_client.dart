@@ -72,6 +72,22 @@ abstract interface class ConfigDirectorClient {
   /// assignable to (usually `Map<String, dynamic>` or `List<dynamic>`).
   T getValue<T extends Object>(String configKey, T defaultValue);
 
+  /// Evaluates [configKey] the way [getValue] does, and says why it evaluated
+  /// the way it did.
+  ///
+  /// The returned [ConfigEvaluation.value] is what [getValue] would have
+  /// returned, so it is [defaultValue] whenever the config could not be served
+  /// as `T`, and [ConfigEvaluation.reason] says why. Use this where the reason
+  /// matters at the point of the read, such as when reporting an evaluation to
+  /// another system; [getValue] is enough everywhere else. Like every read, it
+  /// is emitted on [onConfigEvaluated] and counted in telemetry.
+  ///
+  /// ```dart
+  /// final evaluation = client.evaluate('dark-mode', false);
+  /// if (evaluation.reason == EvaluationReason.clientNotReady) { ... }
+  /// ```
+  ConfigEvaluation evaluate<T extends Object>(String configKey, T defaultValue);
+
   /// Watches [configKey] for changes, which can come from an update in the
   /// ConfigDirector dashboard or from a call to [updateContext].
   ///

@@ -7,6 +7,7 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
     : values = values ?? {};
 
   final Map<String, Object> values;
+  final Set<String> keysWithoutValue = {};
   final List<ConfigDirectorContext?> initializeCalls = [];
   final List<ConfigDirectorContext> updateContextCalls = [];
 
@@ -47,9 +48,43 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
   }
 
   @override
-  T getValue<T extends Object>(String configKey, T defaultValue) {
+  T getValue<T extends Object>(String configKey, T defaultValue) =>
+      evaluate(configKey, defaultValue).value as T;
+
+  @override
+  ConfigEvaluation evaluate<T extends Object>(
+    String configKey,
+    T defaultValue,
+  ) {
     final value = values[configKey];
-    return value is T ? value : defaultValue;
+    final (
+      Object result,
+      String? valueId,
+      EvaluationReason reason,
+    ) = switch (value) {
+      null when keysWithoutValue.contains(configKey) => (
+        defaultValue,
+        null,
+        EvaluationReason.valueMissing,
+      ),
+      null => (
+        defaultValue,
+        null,
+        _ready
+            ? EvaluationReason.configStateMissing
+            : EvaluationReason.clientNotReady,
+      ),
+      T() => (value, 'value-id-$configKey', EvaluationReason.foundMatch),
+      _ => (defaultValue, null, EvaluationReason.typeMismatch),
+    };
+    return ConfigEvaluation(
+      key: configKey,
+      value: result,
+      valueId: valueId,
+      isDefaultValue: reason != EvaluationReason.foundMatch,
+      reason: reason,
+      context: _context,
+    );
   }
 
   @override

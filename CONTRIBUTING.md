@@ -14,8 +14,13 @@ sources, tests and sample app.
 
 The OpenFeature provider builds on `openfeature_dart_client_sdk`, the static-context client SDK,
 which is in its first beta. Until that settles the provider is marked `publish_to: "none"` and is
-left out of the root README. It depends on the *published* client SDK rather than the one in the
-working tree, the way a consumer does, and needs Dart 3.12.2, so Flutter 3.44.2 or later.
+left out of the root README. It depends on the client SDK in the working tree through a `path`
+dependency, because it needs the SDK's unreleased `evaluate` and wrapper API; switch it to the
+published version before the first release. It needs Dart 3.12.2, so Flutter 3.44.2 or later.
+
+The provider reports itself to the server as `flutter-openfeature-client-provider`, at the
+version in its `lib/src/constants.dart`, which `dart run tool/update_sdk_version.dart` keeps in
+step with its pubspec the same way as the client SDK's.
 
 What is shared sits at the root: the Flutter pin in [.fvmrc](.fvmrc), the
 [validation](tool/validate.sh) and [format](format.sh) scripts, the git hooks and the workflows.

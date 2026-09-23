@@ -5,6 +5,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `evaluate`, returning the `ConfigEvaluation` that `getValue` would have emitted: the value,
+  whether it is the default, the reason, and the value id. Use it where the reason matters at the
+  point of the read; `getValue` is enough everywhere else.
+- `SdkIdentity` and `createWrapperClient`, through which a wrapper maintained by ConfigDirector
+  reports its own name and version to the server in place of the SDK's. The set of identities is
+  closed: there is a factory per wrapper, and no way to build one from an arbitrary name. Both live
+  in the separate `wrapper.dart` library, since an application has no use for them. This is
+  groundwork for the OpenFeature provider.
+
 ## [1.1.0] - 2026-09-17
 
 ### Fixed

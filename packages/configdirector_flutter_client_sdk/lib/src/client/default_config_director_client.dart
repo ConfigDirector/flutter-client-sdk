@@ -12,6 +12,7 @@ import '../lifecycle.dart';
 import '../logger.dart';
 import '../platform/app_info.dart';
 import '../platform/user_agent.dart';
+import '../sdk_identity.dart';
 import '../telemetry/event_reporter.dart';
 import '../telemetry/reporter_factory.dart';
 import '../telemetry/telemetry_client.dart';
@@ -44,6 +45,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   factory DefaultConfigDirectorClient(
     String clientSdkKey, {
     ConfigDirectorClientOptions? options,
+    SdkIdentity identity = flutterClientSdkIdentity,
     http.Client? httpClient,
     TransportFactory? transportFactory,
     AppLifecycleWatcher? lifecycleWatcher,
@@ -63,8 +65,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       clientSdkKey: clientSdkKey,
       baseUrl: baseUrl,
       metaContext: SdkMetaContext(
-        sdkName: constants.sdkName,
-        sdkVersion: constants.sdkVersion,
+        sdkName: identity.name,
+        sdkVersion: identity.version,
         metadata: options?.metadata,
         userAgent: (userAgentResolver ?? resolveUserAgent)(),
       ),
@@ -85,9 +87,9 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
             reporter: createEventReporter(
               sdkKey: clientSdkKey,
               baseUrl: baseUrl,
-              metaContext: const TelemetryMetaContext(
-                sdkName: constants.sdkName,
-                sdkVersion: constants.sdkVersion,
+              metaContext: TelemetryMetaContext(
+                sdkName: identity.name,
+                sdkVersion: identity.version,
               ),
               logger: logger,
             ),
@@ -193,7 +195,14 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       _connect(context, ClientConnectAction.contextUpdate);
 
   @override
-  T getValue<T extends Object>(String configKey, T defaultValue) {
+  T getValue<T extends Object>(String configKey, T defaultValue) =>
+      evaluate(configKey, defaultValue).value as T;
+
+  @override
+  ConfigEvaluation evaluate<T extends Object>(
+    String configKey,
+    T defaultValue,
+  ) {
     _validateDefaultValue(defaultValue);
     return _evaluate(configKey, _configSet?.configs[configKey], defaultValue);
   }
@@ -416,7 +425,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     );
   }
 
-  T _evaluate<T extends Object>(
+  ConfigEvaluation _evaluate<T extends Object>(
     String configKey,
     ConfigState? configState,
     T defaultValue,
@@ -440,19 +449,15 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           evaluationReason: reason,
         ),
       );
-      _emit(
-        _configEvaluated,
-        ConfigEvaluatedEvent(
-          ConfigEvaluation(
-            key: configKey,
-            value: defaultValue,
-            isDefaultValue: true,
-            reason: reason,
-            context: _currentContext,
-          ),
-        ),
+      final evaluation = ConfigEvaluation(
+        key: configKey,
+        value: defaultValue,
+        isDefaultValue: true,
+        reason: reason,
+        context: _currentContext,
       );
-      return defaultValue;
+      _emit(_configEvaluated, ConfigEvaluatedEvent(evaluation));
+      return evaluation;
     }
 
     final result = parseConfigValue(configState, defaultValue);
@@ -469,23 +474,19 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         evaluationReason: result.reason,
       ),
     );
-    _emit(
-      _configEvaluated,
-      ConfigEvaluatedEvent(
-        ConfigEvaluation(
-          key: configKey,
-          value: result.value,
-          valueId: result.valueId,
-          isDefaultValue: result.usedDefault,
-          reason: result.reason,
-          context: _currentContext,
-        ),
-      ),
+    final evaluation = ConfigEvaluation(
+      key: configKey,
+      value: result.value,
+      valueId: result.valueId,
+      isDefaultValue: result.usedDefault,
+      reason: result.reason,
+      context: _currentContext,
     );
+    _emit(_configEvaluated, ConfigEvaluatedEvent(evaluation));
     _logger.debug(
       "[ConfigDirectorClient] Evaluated '$configKey' to '${result.value}'",
     );
-    return result.value;
+    return evaluation;
   }
 
   void _handleLifecycleState(AppLifecycleState state) {

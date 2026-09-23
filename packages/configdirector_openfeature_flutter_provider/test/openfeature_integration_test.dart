@@ -1,5 +1,5 @@
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
-import 'package:configdirector_openfeature_flutter_provider/configdirector_openfeature_flutter_provider.dart';
+import 'package:configdirector_openfeature_flutter_provider/src/config_director_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk_experimental.dart';
 
@@ -31,7 +31,7 @@ void main() {
         'theme': <String, Object?>{'accent': 'teal'},
       },
     );
-    provider = ConfigDirectorProvider.withClient(configDirectorClient);
+    provider = providerForClient(configDirectorClient);
   });
 
   tearDown(() => api.shutdown());
@@ -66,6 +66,22 @@ void main() {
     expect(client.getDoubleValue('ratio', 0.5), 1.5);
     expect(client.getStructureValue('theme', const {}), {'accent': 'teal'});
     expect(client.getStringValue('missing', 'default'), 'default');
+  });
+
+  test('exposes resolution details through an OpenFeature client', () async {
+    await api.setProviderAndWait(provider);
+    final client = api.getClient();
+
+    final served = client.getBooleanDetails('dark-mode', false);
+    expect(served.value, isTrue);
+    expect(served.variant, 'value-id-dark-mode');
+    expect(served.reason, 'TARGETING_MATCH');
+    expect(served.errorCode, isNull);
+
+    final unknown = client.getStringDetails('missing', 'default');
+    expect(unknown.value, 'default');
+    expect(unknown.errorCode, ErrorCode.flagNotFound);
+    expect(unknown.reason, 'ERROR');
   });
 
   test('notifies ready handlers once', () async {

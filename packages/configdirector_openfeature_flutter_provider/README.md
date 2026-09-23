@@ -44,7 +44,7 @@ The OpenFeature evaluation context is sent to ConfigDirector as the user's conte
 | `traits`, a structure        | `traits`       |
 | `anonymous`, a boolean       | `anonymous`    |
 
-Any other attribute is ignored. Put the values your targeting rules depend on inside `traits`:
+Any other attribute is ignored. Put the values your targeting rules depend on inside `traits`. The context handed to an individual evaluation is ignored as well: flags are evaluated against the context most recently set.
 
 ```dart
 await OpenFeatureAPI.instance.setEvaluationContextAndWait(
@@ -56,6 +56,17 @@ await OpenFeatureAPI.instance.setEvaluationContextAndWait(
     },
   ),
 );
+```
+
+## Resolution details
+
+A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's id as its variant. One the config has no value for resolves to the default with the reason `DEFAULT`. Everything else is an error carrying the default: `flagNotFound` for an unknown key, `providerNotReady` before config state has arrived, and `typeMismatch` for a value that cannot be read as the requested type.
+
+```dart
+final details = client.getBooleanDetails('dark-mode', false);
+if (details.errorCode == ErrorCode.providerNotReady) {
+  // Config state has not arrived yet.
+}
 ```
 
 ## Documentation

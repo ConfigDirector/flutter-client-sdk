@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
+import 'package:configdirector_flutter_client_sdk/wrapper.dart';
 import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk.dart';
 
+import 'constants.dart' as constants;
 import 'context_mapper.dart';
+import 'resolution.dart';
 
 /// An [OpenFeature](https://openfeature.dev) provider that resolves flags with
 /// the ConfigDirector Flutter client SDK.
@@ -40,7 +43,17 @@ import 'context_mapper.dart';
 /// | `anonymous`, a boolean             | `anonymous`    |
 ///
 /// Any other attribute is ignored. Put the values targeting rules depend on
-/// inside `traits`.
+/// inside `traits`. The context handed to an individual resolution is ignored
+/// as well: flags are evaluated against the context most recently set.
+///
+/// ## Resolution details
+///
+/// A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and
+/// the served value's id as its variant. One the config has no value for
+/// resolves to the default with the reason `DEFAULT`. Everything else is an
+/// error carrying the default: `flagNotFound` for an unknown key,
+/// `providerNotReady` before config state has arrived, and `typeMismatch` for
+/// a value that cannot be read as the requested type.
 ///
 /// ## Provider status
 ///
@@ -68,21 +81,20 @@ final class ConfigDirectorProvider
   ///
   /// [options] configures the underlying ConfigDirector client: application
   /// metadata, the connection mode and timeout, and logging.
+  ///
+  /// Throws a [ConfigDirectorValidationException] if [clientSdkKey] is blank.
   ConfigDirectorProvider({
     required String clientSdkKey,
     ConfigDirectorClientOptions? options,
-  }) : this.withClient(
-         ConfigDirectorClient(clientSdkKey: clientSdkKey, options: options),
+  }) : this._(
+         createWrapperClient(
+           clientSdkKey: clientSdkKey,
+           identity: SdkIdentity.openFeatureProvider(constants.sdkVersion),
+           options: options,
+         ),
        );
 
-  /// Creates a provider that resolves flags with [client].
-  ///
-  /// Use this to keep a reference to the client, for instance to `watch` a
-  /// config alongside OpenFeature. The provider owns [client] from here on: it
-  /// initializes it, updates its context, and disposes of it on shutdown, so
-  /// do not call `initialize`, `updateContext` or `dispose` on it yourself.
-  ConfigDirectorProvider.withClient(ConfigDirectorClient client)
-    : _client = client {
+  ConfigDirectorProvider._(ConfigDirectorClient client) : _client = client {
     _clientReadySubscription = client.onClientReady.listen(_handleClientReady);
     _configsUpdatedSubscription = client.onConfigsUpdated.listen(
       _handleConfigsUpdated,
@@ -181,7 +193,10 @@ final class ConfigDirectorProvider
   ResolutionDetails<T> _resolve<T extends Object>(
     String flagKey,
     T defaultValue,
-  ) => ResolutionDetails<T>(value: _client.getValue<T>(flagKey, defaultValue));
+  ) {
+    final evaluation = _client.evaluate<T>(flagKey, defaultValue);
+    return resolutionOf(evaluation, evaluation.value as T);
+  }
 
   void _reportOutcome({
     required ProviderEventType success,
@@ -228,3 +243,6 @@ final class ConfigDirectorProvider
     _events.add(event);
   }
 }
+
+ConfigDirectorProvider providerForClient(ConfigDirectorClient client) =>
+    ConfigDirectorProvider._(client);

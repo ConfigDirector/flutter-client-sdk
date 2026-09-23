@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
-import 'package:configdirector_openfeature_flutter_provider/configdirector_openfeature_flutter_provider.dart';
+import 'package:configdirector_openfeature_flutter_provider/src/config_director_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk.dart';
 
@@ -19,7 +19,7 @@ void main() {
 
   setUp(() {
     client = FakeConfigDirectorClient();
-    provider = ConfigDirectorProvider.withClient(client);
+    provider = providerForClient(client);
     events = [];
     provider.events.listen(events.add);
   });
@@ -260,6 +260,73 @@ void main() {
           'nested': {'enabled': true},
         },
       );
+    });
+
+    test('carries the served value id as the variant', () {
+      final details = provider.resolveStringValue(
+        'a-string',
+        'default',
+        EvaluationContext.empty,
+      );
+
+      expect(details.variant, 'value-id-a-string');
+      expect(details.reason, 'TARGETING_MATCH');
+      expect(details.errorCode, isNull);
+    });
+
+    test('resolves a config without a value to the default', () {
+      client.keysWithoutValue.add('unset');
+
+      final details = provider.resolveIntegerValue(
+        'unset',
+        3,
+        EvaluationContext.empty,
+      );
+
+      expect(details.value, 3);
+      expect(details.reason, 'DEFAULT');
+      expect(details.variant, isNull);
+      expect(details.errorCode, isNull);
+    });
+
+    test('reports an unknown key once the client is ready', () async {
+      await provider.initialize(EvaluationContext.empty);
+
+      final details = provider.resolveStringValue(
+        'missing',
+        'default',
+        EvaluationContext.empty,
+      );
+
+      expect(details.value, 'default');
+      expect(details.errorCode, ErrorCode.flagNotFound);
+      expect(details.errorMessage, contains("'missing'"));
+      expect(details.reason, 'ERROR');
+    });
+
+    test('reports the provider not being ready', () {
+      final details = provider.resolveStringValue(
+        'missing',
+        'default',
+        EvaluationContext.empty,
+      );
+
+      expect(details.value, 'default');
+      expect(details.errorCode, ErrorCode.providerNotReady);
+      expect(details.reason, 'ERROR');
+    });
+
+    test('reports a value that cannot be read as the requested type', () {
+      final details = provider.resolveIntegerValue(
+        'a-string',
+        3,
+        EvaluationContext.empty,
+      );
+
+      expect(details.value, 3);
+      expect(details.errorCode, ErrorCode.typeMismatch);
+      expect(details.errorMessage, contains('type-mismatch'));
+      expect(details.reason, 'ERROR');
     });
 
     test('resolves to the default value when the client has no value', () {

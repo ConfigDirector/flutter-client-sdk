@@ -8,6 +8,7 @@ import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_client.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_value.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
+import 'package:configdirector_flutter_client_sdk/src/sdk_identity.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -31,8 +32,10 @@ void main() {
     String? Function()? userAgentResolver,
     AppInfoResolver? appInfoResolver,
     TelemetryClient? telemetryClient,
+    SdkIdentity? identity,
   }) => DefaultConfigDirectorClient(
     'a-client-sdk-key',
+    identity: identity ?? flutterClientSdkIdentity,
     options: ConfigDirectorClientOptions(
       logger: logger,
       metadata: metadata,
@@ -224,6 +227,22 @@ void main() {
         ),
       );
       expect(secondId, isNot(firstId));
+    });
+  });
+
+  group('wrapper identity', () {
+    test('reports the wrapper in place of the SDK', () {
+      autoDispose(
+        createClient(identity: SdkIdentity.openFeatureProvider('2.0.0')),
+      );
+
+      expect(
+        transportOptions.single.metaContext.toJson(),
+        allOf(
+          containsPair('sdkName', 'flutter-openfeature-client-provider'),
+          containsPair('sdkVersion', '2.0.0'),
+        ),
+      );
     });
   });
 
@@ -540,6 +559,78 @@ void main() {
       await pumpEventQueue();
 
       expect(evaluations.single.reason, EvaluationReason.configStateMissing);
+    });
+  });
+
+  group('evaluate', () {
+    test('says why a config evaluated the way it did', () async {
+      final client = autoDispose(createClient());
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-123'),
+      );
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+            'max-items': configState('max-items', ConfigType.integer, 'lots'),
+          },
+        ),
+      );
+      await initialization;
+
+      final served = client.evaluate('dark-mode', false);
+      expect(served.key, 'dark-mode');
+      expect(served.value, isTrue);
+      expect(served.valueId, 'value-id');
+      expect(served.isDefaultValue, isFalse);
+      expect(served.reason, EvaluationReason.foundMatch);
+      expect(served.context, const ConfigDirectorContext(id: 'user-123'));
+
+      final unreadable = client.evaluate('max-items', 10);
+      expect(unreadable.value, 10);
+      expect(unreadable.valueId, isNull);
+      expect(unreadable.isDefaultValue, isTrue);
+      expect(unreadable.reason, EvaluationReason.invalidNumber);
+
+      final unknown = client.evaluate('unknown', 'fallback');
+      expect(unknown.value, 'fallback');
+      expect(unknown.reason, EvaluationReason.configStateMissing);
+      expect(unknown.context, const ConfigDirectorContext(id: 'user-123'));
+    });
+
+    test('reports the client not being ready', () {
+      final client = autoDispose(createClient());
+
+      final evaluation = client.evaluate('dark-mode', false);
+
+      expect(evaluation.value, isFalse);
+      expect(evaluation.isDefaultValue, isTrue);
+      expect(evaluation.reason, EvaluationReason.clientNotReady);
+    });
+
+    test('is published and counted like getValue', () async {
+      final client = autoDispose(createClient());
+      final evaluations = <ConfigEvaluation>[];
+      client.onConfigEvaluated.listen(
+        (event) => evaluations.add(event.evaluation),
+      );
+
+      final evaluation = client.evaluate('dark-mode', false);
+      await pumpEventQueue();
+
+      expect(evaluations.single.key, 'dark-mode');
+      expect(evaluations.single.reason, evaluation.reason);
+      expect(telemetry.events.single.key, 'dark-mode');
+      expect(telemetry.events.single.requestedType, 'bool');
+    });
+
+    test('rejects a function default value', () {
+      final client = autoDispose(createClient());
+
+      expect(
+        () => client.evaluate('a-key', () {}),
+        throwsA(isA<ConfigDirectorValidationException>()),
+      );
     });
   });
 
