@@ -73,7 +73,7 @@ if (details.errorCode == ErrorCode.providerNotReady) {
 
 ## Documentation
 
-Refer to the [official documentation for the Flutter SDK](https://docs.configdirector.com/sdks/mobile/flutter) for the options the provider accepts, and to the [OpenFeature Dart client SDK reference](https://openfeature.dev/docs/reference/sdks/client/dart) for evaluating flags, handling events and writing hooks.
+Refer to the [official documentation for the OpenFeature Flutter provider](https://docs.configdirector.com/sdks/openfeature/flutter).
 
 There is also [a quickstart guide for ConfigDirector and any of our SDKs](https://docs.configdirector.com/getting-started/quickstart).
 

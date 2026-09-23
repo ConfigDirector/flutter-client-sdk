@@ -6,10 +6,10 @@ Flutter and Dart SDKs for [ConfigDirector](https://www.configdirector.com), remo
 
 Each package has its own README with an install command and a first example, and the [quickstart](https://docs.configdirector.com/getting-started/quickstart) walks through the first flag end to end.
 
-| Package                                                                                                              | pub.dev                                                                     | Docs                                                |
-| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------- |
-| [configdirector_flutter_client_sdk](packages/configdirector_flutter_client_sdk/README.md)                            | [![pub.dev][flutter-sdk-pub-badge]][flutter-sdk-pub-link]                   | https://docs.configdirector.com/sdks/mobile/flutter |
-| [configdirector_openfeature_flutter_provider](packages/configdirector_openfeature_flutter_provider/README.md) (beta) | [![pub.dev][openfeature-provider-pub-badge]][openfeature-provider-pub-link] |                                                     |
+| Package                                                                                                              | pub.dev                                                                     | Docs                                                     |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [configdirector_flutter_client_sdk](packages/configdirector_flutter_client_sdk/README.md)                            | [![pub.dev][flutter-sdk-pub-badge]][flutter-sdk-pub-link]                   | https://docs.configdirector.com/sdks/mobile/flutter      |
+| [configdirector_openfeature_flutter_provider](packages/configdirector_openfeature_flutter_provider/README.md) (beta) | [![pub.dev][openfeature-provider-pub-badge]][openfeature-provider-pub-link] | https://docs.configdirector.com/sdks/openfeature/flutter |
 
 ## Contributing
 
