@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-22
+
 ### Added
 
 - `evaluate`, returning the `ConfigEvaluation` that `getValue` would have emitted: the value,
