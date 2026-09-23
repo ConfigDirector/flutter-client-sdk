@@ -9,8 +9,10 @@ It plugs the [ConfigDirector Flutter SDK](https://pub.dev/packages/configdirecto
 ## Install
 
 ```bash
-flutter pub add configdirector_openfeature_flutter_provider openfeature_dart_client_sdk
+flutter pub add configdirector_openfeature_flutter_provider:^0.1.0-beta.1 openfeature_dart_client_sdk:^0.0.1-beta.1
 ```
+
+The OpenFeature Dart client SDK is in beta, so the provider is published as a beta alongside it and both have to be asked for by version: pub never picks a pre-release on its own. Expect a new provider beta for each OpenFeature beta until they go stable together.
 
 The OpenFeature Dart client SDK requires Dart 3.12.2, which ships with Flutter 3.44.2 and later.
 

@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.1] - 2026-09-22
+
 ### Added
 
 - `ConfigDirectorProvider`, an OpenFeature provider for the static-context Dart client SDK
