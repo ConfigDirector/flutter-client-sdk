@@ -5,7 +5,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.1.0-beta.1] - 2026-09-25
+## [0.1.0-beta.2] - 2026-09-25
 
 ### Changed
 
