@@ -20,6 +20,14 @@ final class ConfigEvaluationResult<T extends Object> {
   final EvaluationReason reason;
 }
 
+const Set<ConfigType> _stringSourceTypes = {
+  ConfigType.string,
+  ConfigType.enumeration,
+  ConfigType.url,
+  ConfigType.custom,
+  ConfigType.json,
+};
+
 const Set<ConfigType> _booleanSourceTypes = {
   ConfigType.boolean,
   ConfigType.string,
@@ -51,6 +59,9 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
   }
 
   if (defaultValue is String) {
+    if (!_stringSourceTypes.contains(configState.type)) {
+      return _useDefault(defaultValue, EvaluationReason.typeMismatch);
+    }
     return _matched(rawValue, configState.valueId, defaultValue);
   }
 

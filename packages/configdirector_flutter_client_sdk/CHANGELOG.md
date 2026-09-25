@@ -5,6 +5,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-25
+
+### Changed
+
+- A boolean, integer, or float config requested as a `String` now evaluates to the default value
+  with the `typeMismatch` reason, instead of the value's text with `foundMatch`. Reading a JSON
+  config as a `String` still returns its raw document.
+
 ## [1.2.0] - 2026-09-22
 
 ### Added

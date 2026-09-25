@@ -5,6 +5,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.1] - 2026-09-25
+
+### Changed
+
+- Bumped the dependency to the latest `configdirector_flutter_client_sdk` which includes evaluation type mismatch fixes
+
 ## [0.1.0-beta.1] - 2026-09-22
 
 ### Added

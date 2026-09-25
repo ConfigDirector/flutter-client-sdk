@@ -1,6 +1,6 @@
 name: configdirector_openfeature_flutter_provider
 description: "OpenFeature provider for ConfigDirector on Flutter. ConfigDirector is a remote configuration and feature flag service."
-version: 0.1.0-beta.1
+version: 0.1.0-beta.2
 homepage: https://www.configdirector.com
 repository: https://github.com/ConfigDirector/flutter-client-sdk/tree/main/packages/configdirector_openfeature_flutter_provider
 issue_tracker: https://github.com/ConfigDirector/flutter-client-sdk/issues

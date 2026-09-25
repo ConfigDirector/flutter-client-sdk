@@ -32,14 +32,35 @@ void main() {
     });
 
     group('string defaults', () {
-      test('returns the raw value regardless of the config type', () {
-        for (final type in ConfigType.values) {
+      test('returns the raw value of a text or JSON config', () {
+        for (final type in [
+          ConfigType.string,
+          ConfigType.enumeration,
+          ConfigType.url,
+          ConfigType.custom,
+          ConfigType.json,
+        ]) {
           final result = parseConfigValue(state(type, '42'), 'fallback');
 
           expect(result.value, '42', reason: 'for ${type.wireName}');
           expect(result.usedDefault, isFalse);
           expect(result.valueId, 'value-id');
           expect(result.reason, EvaluationReason.foundMatch);
+        }
+      });
+
+      test('falls back when the config holds a boolean or a number', () {
+        for (final type in [
+          ConfigType.boolean,
+          ConfigType.integer,
+          ConfigType.float,
+        ]) {
+          final result = parseConfigValue(state(type, '1'), 'fallback');
+
+          expect(result.value, 'fallback', reason: 'for ${type.wireName}');
+          expect(result.usedDefault, isTrue);
+          expect(result.valueId, isNull);
+          expect(result.reason, EvaluationReason.typeMismatch);
         }
       });
     });
