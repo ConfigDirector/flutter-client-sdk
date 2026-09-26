@@ -5,6 +5,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.3] - 2026-09-26
+
+### Changed
+
+- Bumped the dependency to the latest `configdirector_flutter_client_sdk` which includes telemetry fixes
+
 ## [0.1.0-beta.2] - 2026-09-25
 
 ### Changed

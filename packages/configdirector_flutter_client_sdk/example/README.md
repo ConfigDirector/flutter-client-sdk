@@ -42,20 +42,20 @@ alongside its key.
 
 Reading [lib/main.dart](lib/main.dart) top to bottom, in order:
 
-| Part                       | What it shows                                                          |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `SampleApp`                | Creating, initializing and disposing a single client for the whole app |
-| `_contextFromEnvironment`  | Passing a targeting context to `initialize`                            |
-| `ConfigDirectorScope`      | Handing that client to the widget tree with an `InheritedWidget`       |
-| `ConfigValue`              | Rebuilding on config changes with `watch` and a `StreamBuilder`        |
-| `HomePage`                 | Reading `bool`, `int`, `String` and JSON configs                       |
-| `_ReadyIndicator`          | Following the connection with the client's ready event                 |
+| Part                      | What it shows                                                          |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `SampleApp`               | Creating, initializing and disposing a single client for the whole app |
+| `_contextFromEnvironment` | Passing a targeting context to `initialize`                            |
+| `ConfigDirectorScope`     | Handing that client to the widget tree with an `InheritedWidget`       |
+| `ConfigValue`             | Rebuilding on config changes with `watch` and a `StreamBuilder`        |
+| `HomePage`                | Reading `bool`, `int`, `String` and JSON configs                       |
+| `_ReadyIndicator`         | Following the connection with the client's ready event                 |
 
 ## Using the SDK in your own app
 
 ```yaml
 dependencies:
-  configdirector_flutter_client_sdk: ^1.3.0
+  configdirector_flutter_client_sdk: ^1.3.1
 ```
 
 ## Tests
