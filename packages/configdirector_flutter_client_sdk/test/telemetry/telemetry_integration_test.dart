@@ -9,6 +9,7 @@ import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
+import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,7 +48,9 @@ void main() {
 
   tearDown(() => server.close(force: true));
 
-  test('reports the configs an application evaluated', () async {
+  DefaultConfigDirectorClient createClient({
+    required AppInfoResolver appInfoResolver,
+  }) {
     final client = DefaultConfigDirectorClient(
       'a-client-sdk-key',
       options: ConfigDirectorClientOptions(
@@ -59,9 +62,17 @@ void main() {
       ),
       transportFactory: (_) => transport,
       lifecycleWatcher: lifecycleWatcher,
-      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+      userAgentResolver: () => 'integration-tests',
+      appInfoResolver: appInfoResolver,
     );
     addTearDown(client.dispose);
+    return client;
+  }
+
+  test('reports the configs an application evaluated', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+    );
 
     final initialization = client.initialize(
       const ConfigDirectorContext(id: 'user-123'),
@@ -89,6 +100,7 @@ void main() {
     expect(report['metaContext'], {
       'sdkName': constants.sdkName,
       'sdkVersion': constants.sdkVersion,
+      'userAgent': 'integration-tests',
     });
     expect(report['droppedEvents'], {'evaluatedConfig': 0});
 
@@ -112,5 +124,26 @@ void main() {
         'evaluationReason': 'found-match',
       },
     });
+  });
+
+  test('reports the app name and version read from the platform', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(
+        appName: 'Sample App',
+        appVersion: '4.5.6',
+      ),
+    );
+
+    final initialization = client.initialize();
+    transport.emitConfigSet(configSet(configs: const {}));
+    await initialization;
+
+    client.getValue('dark-mode', false);
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    final report = await reported.future.timeout(const Duration(seconds: 10));
+
+    expect(report['metaContext'], containsPair('appName', 'Sample App'));
+    expect(report['metaContext'], containsPair('appVersion', '4.5.6'));
   });
 }

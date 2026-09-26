@@ -36,9 +36,14 @@ EvaluatedConfigEvent evaluation({
 
 EventReportRequest requestOf(
   List<EvaluatedConfigEvent> events, {
+  SdkMetaContext metaContext = const SdkMetaContext(
+    sdkName: 'reporter-tests',
+    sdkVersion: '1.0.1',
+  ),
   ConfigDirectorContext? context,
   int droppedCount = 0,
 }) => EventReportRequest(
+  metaContext: metaContext,
   context: context,
   snapshot: EventQueueSnapshot(
     startTime: DateTime.utc(2026),
@@ -63,10 +68,6 @@ void main() {
   }) => HttpEventReporter(
     sdkKey: 'a-client-sdk-key',
     baseUrl: Uri.parse('https://sdk.example.com'),
-    metaContext: const TelemetryMetaContext(
-      sdkName: 'reporter-tests',
-      sdkVersion: '1.0.1',
-    ),
     logger: logger,
     timeout: timeout,
     httpClient: MockClient((request) async {
@@ -161,6 +162,31 @@ void main() {
       });
     },
   );
+
+  test('reports the app name and version in the meta context', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    await reporter.report(
+      requestOf(
+        [evaluation()],
+        metaContext: const SdkMetaContext(
+          sdkName: 'reporter-tests',
+          sdkVersion: '1.0.1',
+          metadata: ConfigDirectorMetaContext(
+            appName: 'Sample App',
+            appVersion: '4.5.6',
+          ),
+        ),
+      ),
+    );
+
+    expect(bodyOf(requests.single)['metaContext'], {
+      'appName': 'Sample App',
+      'appVersion': '4.5.6',
+      'sdkName': 'reporter-tests',
+      'sdkVersion': '1.0.1',
+    });
+  });
 
   test('reports a value too large to send by its id', () async {
     final reporter = reporterWith((_) => http.Response('', 202));

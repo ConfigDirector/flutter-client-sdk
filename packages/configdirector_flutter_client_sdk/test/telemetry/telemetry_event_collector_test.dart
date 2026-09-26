@@ -11,6 +11,10 @@ import '../support/fakes.dart';
 
 const Duration _initialFlushDelay = Duration(seconds: 5);
 const Duration _flushInterval = Duration(seconds: 30);
+const SdkMetaContext _metaContext = SdkMetaContext(
+  sdkName: 'collector-tests',
+  sdkVersion: '1.0.0',
+);
 
 EvaluatedConfigEvent evaluation([String key = 'dark-mode']) =>
     EvaluatedConfigEvent.fromEvaluation(
@@ -23,6 +27,8 @@ EvaluatedConfigEvent evaluation([String key = 'dark-mode']) =>
       evaluationReason: EvaluationReason.foundMatch,
     );
 
+SdkMetaContext _currentMetaContext() => _metaContext;
+
 void main() {
   late FakeEventReporter reporter;
   late RecordingLogger logger;
@@ -32,14 +38,17 @@ void main() {
     logger = RecordingLogger();
   });
 
-  TelemetryEventCollector createCollector({int eventQueueLimit = 1000}) =>
-      TelemetryEventCollector(
-        reporter: reporter,
-        logger: logger,
-        flushInterval: _flushInterval,
-        initialFlushDelay: _initialFlushDelay,
-        eventQueueLimit: eventQueueLimit,
-      );
+  TelemetryEventCollector createCollector({
+    SdkMetaContext Function() currentMetaContext = _currentMetaContext,
+    int eventQueueLimit = 1000,
+  }) => TelemetryEventCollector(
+    reporter: reporter,
+    currentMetaContext: currentMetaContext,
+    logger: logger,
+    flushInterval: _flushInterval,
+    initialFlushDelay: _initialFlushDelay,
+    eventQueueLimit: eventQueueLimit,
+  );
 
   List<EvaluatedConfigEvent> reportedEvents(int index) =>
       reporter.requests[index].snapshot.events;
@@ -53,6 +62,28 @@ void main() {
 
       async.elapse(const Duration(seconds: 1));
       expect(reportedEvents(0), [evaluation()]);
+    });
+  });
+
+  test('stamps each report with the meta context current at that flush', () {
+    fakeAsync((async) {
+      var metaContext = _metaContext;
+      final collector = createCollector(currentMetaContext: () => metaContext);
+
+      collector.evaluatedConfig(evaluation());
+      async.elapse(_initialFlushDelay);
+      metaContext = _metaContext.withMetadata(
+        const ConfigDirectorMetaContext(
+          appName: 'Sample App',
+          appVersion: '4.5.6',
+        ),
+      );
+      collector.evaluatedConfig(evaluation('greeting'));
+      async.elapse(_flushInterval);
+
+      expect(reporter.requests[0].metaContext.metadata, isNull);
+      expect(reporter.requests[1].metaContext.metadata?.appName, 'Sample App');
+      expect(reporter.requests[1].metaContext.metadata?.appVersion, '4.5.6');
     });
   });
 

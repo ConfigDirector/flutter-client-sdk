@@ -16,8 +16,13 @@ import '../support/fakes.dart';
 
 EventReportRequest requestOf({
   List<String> keys = const ['dark-mode'],
+  SdkMetaContext metaContext = const SdkMetaContext(
+    sdkName: 'isolate-reporter-tests',
+    sdkVersion: '1.2.3',
+  ),
   ConfigDirectorContext? context,
 }) => EventReportRequest(
+  metaContext: metaContext,
   context: context,
   snapshot: EventQueueSnapshot(
     startTime: DateTime.utc(2026),
@@ -65,10 +70,6 @@ void main() {
   IsolateEventReporter createReporter() => IsolateEventReporter(
     sdkKey: 'a-client-sdk-key',
     baseUrl: Uri.parse('http://${server.address.host}:${server.port}'),
-    metaContext: const TelemetryMetaContext(
-      sdkName: 'isolate-reporter-tests',
-      sdkVersion: '1.2.3',
-    ),
     logger: logger,
   );
 
@@ -86,7 +87,7 @@ void main() {
     expect(received.single['context'], {'id': 'user-123'});
   });
 
-  test('reports the SDK name and version it was given', () async {
+  test('reports the SDK name and version the request carries', () async {
     final reporter = createReporter();
     addTearDown(reporter.close);
 
@@ -96,6 +97,29 @@ void main() {
       'sdkName': 'isolate-reporter-tests',
       'sdkVersion': '1.2.3',
     });
+  });
+
+  test('reports the app name and version each request carries', () async {
+    final reporter = createReporter();
+    addTearDown(reporter.close);
+
+    await reporter.report(requestOf());
+    await reporter.report(
+      requestOf(
+        metaContext: const SdkMetaContext(
+          sdkName: 'isolate-reporter-tests',
+          sdkVersion: '1.2.3',
+          metadata: ConfigDirectorMetaContext(
+            appName: 'Sample App',
+            appVersion: '4.5.6',
+          ),
+        ),
+      ),
+    );
+
+    expect(received[0]['metaContext'], isNot(contains('appName')));
+    expect(received[1]['metaContext'], containsPair('appName', 'Sample App'));
+    expect(received[1]['metaContext'], containsPair('appVersion', '4.5.6'));
   });
 
   test('keeps the isolate for the reports that follow', () async {

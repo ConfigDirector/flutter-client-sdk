@@ -12,23 +12,16 @@ import 'event_queue.dart';
 import 'telemetry_events.dart';
 
 @immutable
-final class TelemetryMetaContext {
-  const TelemetryMetaContext({required this.sdkName, required this.sdkVersion});
-
-  final String sdkName;
-  final String sdkVersion;
-
-  Map<String, Object?> toJson() => {
-    'sdkName': sdkName,
-    'sdkVersion': sdkVersion,
-  };
-}
-
-@immutable
 final class EventReportRequest {
-  const EventReportRequest({required this.snapshot, this.context});
+  const EventReportRequest({
+    required this.snapshot,
+    required this.metaContext,
+    this.context,
+  });
 
   final EventQueueSnapshot<EvaluatedConfigEvent> snapshot;
+
+  final SdkMetaContext metaContext;
 
   final ConfigDirectorContext? context;
 }
@@ -56,13 +49,11 @@ final class HttpEventReporter implements EventReporter {
   HttpEventReporter({
     required String sdkKey,
     required Uri baseUrl,
-    required TelemetryMetaContext metaContext,
     required ConfigDirectorLogger logger,
     http.Client? httpClient,
     Duration timeout = const Duration(seconds: 5),
   }) : _sdkKey = sdkKey,
        _url = baseUrl.resolve('client/telemetry/v1'),
-       _metaContext = metaContext,
        _logger = logger,
        _timeout = timeout,
        _httpClient = httpClient ?? http.Client(),
@@ -70,7 +61,6 @@ final class HttpEventReporter implements EventReporter {
 
   final String _sdkKey;
   final Uri _url;
-  final TelemetryMetaContext _metaContext;
   final ConfigDirectorLogger _logger;
   final Duration _timeout;
   final http.Client _httpClient;
@@ -103,7 +93,7 @@ final class HttpEventReporter implements EventReporter {
     final response = await _send(
       jsonEncode({
         'clientSdkKey': _sdkKey,
-        'metaContext': _metaContext.toJson(),
+        'metaContext': request.metaContext.toJson(),
         if (request.context != null) 'context': request.context!.toJson(),
         'discreteEvents': const <String, Object?>{},
         'aggregatedEvents': {

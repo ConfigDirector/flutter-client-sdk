@@ -17,11 +17,13 @@ import 'telemetry_events.dart';
 final class TelemetryEventCollector implements TelemetryClient {
   TelemetryEventCollector({
     required EventReporter reporter,
+    required SdkMetaContext Function() currentMetaContext,
     required ConfigDirectorLogger logger,
     this.flushInterval = const Duration(seconds: 30),
     Duration initialFlushDelay = const Duration(seconds: 5),
     int eventQueueLimit = 1000,
   }) : _reporter = reporter,
+       _currentMetaContext = currentMetaContext,
        _logger = logger,
        _queue = EventQueue(limit: eventQueueLimit) {
     _flushTimer = Timer(initialFlushDelay, _onFlushTimer);
@@ -30,6 +32,7 @@ final class TelemetryEventCollector implements TelemetryClient {
   final Duration flushInterval;
 
   final EventReporter _reporter;
+  final SdkMetaContext Function() _currentMetaContext;
   final ConfigDirectorLogger _logger;
   final EventQueue<EvaluatedConfigEvent> _queue;
 
@@ -105,6 +108,7 @@ final class TelemetryEventCollector implements TelemetryClient {
 
     final request = EventReportRequest(
       snapshot: _queue.takeSnapshot(),
+      metaContext: _currentMetaContext(),
       context: _context,
     );
     final flush = _flushChain.then((_) => _send(request));

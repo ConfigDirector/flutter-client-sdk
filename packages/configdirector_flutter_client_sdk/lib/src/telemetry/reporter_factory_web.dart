@@ -6,11 +6,5 @@ import 'event_reporter.dart';
 EventReporter createEventReporter({
   required String sdkKey,
   required Uri baseUrl,
-  required TelemetryMetaContext metaContext,
   required ConfigDirectorLogger logger,
-}) => HttpEventReporter(
-  sdkKey: sdkKey,
-  baseUrl: baseUrl,
-  metaContext: metaContext,
-  logger: logger,
-);
+}) => HttpEventReporter(sdkKey: sdkKey, baseUrl: baseUrl, logger: logger);

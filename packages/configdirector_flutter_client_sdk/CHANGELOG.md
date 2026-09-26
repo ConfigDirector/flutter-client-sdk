@@ -5,6 +5,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-09-26
+
+### Fixed
+
+- The telemetry report now includes the app name and version, so that evaluations can be shown in
+  the activity graphs per app.
+
 ## [1.3.0] - 2026-09-25
 
 ### Changed
