@@ -3,6 +3,10 @@ final Uri clientBaseUrl = Uri.parse(
   'https://client-sdk-api.configdirector.com',
 );
 
+const Duration defaultPollingInterval = Duration(seconds: 60);
+
+const Duration minimumPollingInterval = Duration(seconds: 30);
+
 /// The name this SDK identifies itself with to the ConfigDirector server.
 const String sdkName = 'flutter-client-sdk';
 

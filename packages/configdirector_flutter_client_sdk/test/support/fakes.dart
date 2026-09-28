@@ -133,6 +133,7 @@ final class FakeEventReporter implements EventReporter {
 /// clean while still allowing assertions on what was logged.
 final class RecordingLogger implements ConfigDirectorLogger {
   final List<String> messages = [];
+  final List<String> warnings = [];
   final List<String> errors = [];
 
   @override
@@ -144,8 +145,10 @@ final class RecordingLogger implements ConfigDirectorLogger {
       _record(message, error);
 
   @override
-  void warn(String message, [Object? error, StackTrace? stackTrace]) =>
-      _record(message, error);
+  void warn(String message, [Object? error, StackTrace? stackTrace]) {
+    warnings.add(message);
+    _record(message, error);
+  }
 
   @override
   void error(String message, [Object? error, StackTrace? stackTrace]) =>

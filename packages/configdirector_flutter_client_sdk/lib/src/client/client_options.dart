@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../constants.dart' as constants;
 import '../logger.dart';
 import '../types.dart';
 
@@ -8,7 +9,7 @@ import '../types.dart';
 final class ConnectionOptions {
   const ConnectionOptions({
     this.mode = ConnectionMode.streaming,
-    this.pollingInterval = const Duration(seconds: 60),
+    this.pollingInterval = constants.defaultPollingInterval,
     this.timeout = const Duration(seconds: 3),
     this.baseUrl,
     this.pauseWhileBackgrounded = true,
@@ -19,11 +20,15 @@ final class ConnectionOptions {
   /// With [ConnectionMode.streaming] the connection stays open and receives
   /// updates whenever config state changes in the ConfigDirector dashboard.
   /// With [ConnectionMode.polling] config state is fetched during
-  /// initialization and re-fetched every [pollingInterval].
+  /// initialization and re-fetched every [pollingInterval], which defaults to
+  /// 60 seconds and is never shorter than 30 seconds.
   final ConnectionMode mode;
 
   /// How often to re-fetch config state when [mode] is [ConnectionMode.polling].
-  /// It must be positive in that mode and has no effect when streaming.
+  ///
+  /// Defaults to 60 seconds. The minimum is 30 seconds. A value below the
+  /// minimum is raised to the minimum and a warning is logged. It has no effect
+  /// when streaming.
   final Duration pollingInterval;
 
   /// How long to wait for initialization and context updates. Must be

@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../constants.dart' as constants;
 import '../logger.dart';
 import '../types.dart';
 
@@ -17,7 +18,7 @@ final class TransportOptions {
     required this.logger,
     required this.connectionRetryDelay,
     this.httpClient,
-    this.pollingInterval,
+    this.pollingInterval = constants.defaultPollingInterval,
   });
 
   final String clientSdkKey;
@@ -36,7 +37,7 @@ final class TransportOptions {
   /// and owns its own.
   final http.Client? httpClient;
 
-  final Duration? pollingInterval;
+  final Duration pollingInterval;
 
   /// Builds the request payload shared by every transport.
   Map<String, Object?> buildPayload(

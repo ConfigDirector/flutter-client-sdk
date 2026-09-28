@@ -283,39 +283,148 @@ void main() {
       );
     });
 
-    test('rejects a polling interval that is not positive when polling', () {
-      expect(
-        () => DefaultConfigDirectorClient(
-          'a-key',
-          options: const ConfigDirectorClientOptions(
-            connection: ConnectionOptions(
-              mode: ConnectionMode.polling,
-              pollingInterval: Duration.zero,
-            ),
-          ),
-          transportFactory: (_) => transport,
-        ),
-        throwsA(isA<ConfigDirectorValidationException>()),
-      );
-    });
-
-    test('ignores the polling interval when streaming', () {
-      autoDispose(
-        createClient(
-          connection: const ConnectionOptions(
-            mode: ConnectionMode.streaming,
-            pollingInterval: Duration.zero,
-          ),
-        ),
-      );
-    });
-
     test('starts out neither ready nor initializing', () {
       final client = autoDispose(createClient());
 
       expect(client.isReady, isFalse);
       expect(client.isInitializing, isFalse);
       expect(client.context, isNull);
+    });
+  });
+
+  group('polling interval', () {
+    const shortTimeout = Duration(milliseconds: 50);
+
+    test('polls every 60 seconds unless configured otherwise', () {
+      autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.polling,
+            timeout: shortTimeout,
+          ),
+        ),
+      );
+
+      expect(
+        transportOptions.single.pollingInterval,
+        const Duration(seconds: 60),
+      );
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('raises an interval below 30 seconds and warns once', () async {
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.polling,
+            pollingInterval: Duration(seconds: 10),
+            timeout: shortTimeout,
+          ),
+        ),
+      );
+
+      expect(
+        transportOptions.single.pollingInterval,
+        const Duration(seconds: 30),
+      );
+      expect(logger.warnings, hasLength(1));
+      expect(logger.warnings.single, contains('below the minimum'));
+
+      await client.initialize(const ConfigDirectorContext(id: 'user-1'));
+      await client.updateContext(const ConfigDirectorContext(id: 'user-2'));
+
+      expect(
+        logger.warnings.where(
+          (message) => message.contains('below the minimum'),
+        ),
+        hasLength(1),
+      );
+    });
+
+    test('accepts exactly 30 seconds unchanged', () {
+      autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.polling,
+            pollingInterval: Duration(seconds: 30),
+            timeout: shortTimeout,
+          ),
+        ),
+      );
+
+      expect(
+        transportOptions.single.pollingInterval,
+        const Duration(seconds: 30),
+      );
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('raises a zero interval to 30 seconds without throwing', () {
+      expect(
+        () => autoDispose(
+          createClient(
+            connection: const ConnectionOptions(
+              mode: ConnectionMode.polling,
+              pollingInterval: Duration.zero,
+              timeout: shortTimeout,
+            ),
+          ),
+        ),
+        returnsNormally,
+      );
+
+      expect(
+        transportOptions.single.pollingInterval,
+        const Duration(seconds: 30),
+      );
+      expect(logger.warnings.single, contains('below the minimum'));
+    });
+
+    test('raises a negative interval to 30 seconds without throwing', () {
+      expect(
+        () => autoDispose(
+          createClient(
+            connection: const ConnectionOptions(
+              mode: ConnectionMode.polling,
+              pollingInterval: Duration(seconds: -5),
+              timeout: shortTimeout,
+            ),
+          ),
+        ),
+        returnsNormally,
+      );
+
+      expect(
+        transportOptions.single.pollingInterval,
+        const Duration(seconds: 30),
+      );
+      expect(logger.warnings.single, contains('below the minimum'));
+    });
+
+    test('neither throws nor warns about a low interval when streaming', () {
+      expect(
+        () => autoDispose(
+          createClient(
+            connection: const ConnectionOptions(
+              mode: ConnectionMode.streaming,
+              pollingInterval: Duration(seconds: 10),
+              timeout: shortTimeout,
+            ),
+          ),
+        ),
+        returnsNormally,
+      );
+
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('the options keep the configured interval', () {
+      const connection = ConnectionOptions(
+        mode: ConnectionMode.polling,
+        pollingInterval: Duration(seconds: 10),
+      );
+
+      expect(connection.pollingInterval, const Duration(seconds: 10));
     });
   });
 

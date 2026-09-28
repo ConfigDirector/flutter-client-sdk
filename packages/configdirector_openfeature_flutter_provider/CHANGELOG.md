@@ -5,6 +5,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `ConnectionOptions.pollingInterval` defaults to 60 seconds and has a minimum of 30 seconds. In
+  polling mode, a value below the minimum is raised to 30 seconds with a warning from the
+  underlying `configdirector_flutter_client_sdk` client, which no longer throws for a zero or
+  negative interval.
+
 ## [0.1.0-beta.3] - 2026-09-26
 
 ### Changed

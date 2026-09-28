@@ -59,6 +59,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     final connection = options?.connection ?? const ConnectionOptions();
     _validateConnection(connection);
     final baseUrl = _resolveBaseUrl(connection.baseUrl);
+    final pollingInterval = _resolvePollingInterval(connection, logger);
 
     final transportOptions = TransportOptions(
       clientSdkKey: clientSdkKey,
@@ -73,7 +74,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       logger: logger,
       connectionRetryDelay: connectionRetryDelay ?? _exponentialRetryDelay,
       httpClient: httpClient,
-      pollingInterval: connection.pollingInterval,
+      pollingInterval: pollingInterval,
     );
 
     return DefaultConfigDirectorClient._(
@@ -556,13 +557,25 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         "Invalid timeout '${connection.timeout}'. The timeout must be positive.",
       );
     }
-    if (connection.mode == ConnectionMode.polling &&
-        connection.pollingInterval <= Duration.zero) {
-      throw ConfigDirectorValidationException(
-        "Invalid polling interval '${connection.pollingInterval}'. The polling "
-        'interval must be positive.',
-      );
+  }
+
+  static Duration _resolvePollingInterval(
+    ConnectionOptions connection,
+    ConfigDirectorLogger logger,
+  ) {
+    final configuredInterval = connection.pollingInterval;
+    const minimumInterval = constants.minimumPollingInterval;
+    if (connection.mode != ConnectionMode.polling ||
+        configuredInterval >= minimumInterval) {
+      return configuredInterval;
     }
+
+    logger.warn(
+      '[ConfigDirectorClient] pollingInterval of ${configuredInterval.inSeconds} '
+      'seconds is below the minimum of ${minimumInterval.inSeconds} seconds. '
+      'Using ${minimumInterval.inSeconds} seconds.',
+    );
+    return minimumInterval;
   }
 
   static void _validateSdkKey(String clientSdkKey) {

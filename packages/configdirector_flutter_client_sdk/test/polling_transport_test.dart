@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:configdirector_flutter_client_sdk/src/constants.dart'
+    as constants;
 import 'package:configdirector_flutter_client_sdk/src/transport/polling_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
@@ -44,7 +46,7 @@ void main() {
 
   TransportOptions optionsWith(
     http.Client client, {
-    Duration? pollingInterval,
+    Duration pollingInterval = constants.defaultPollingInterval,
   }) => TransportOptions(
     clientSdkKey: 'a-client-sdk-key',
     baseUrl: Uri.parse('https://sdk.example.com'),

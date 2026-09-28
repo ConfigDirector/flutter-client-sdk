@@ -80,7 +80,8 @@ final class ConfigDirectorProvider
   /// ConfigDirector dashboard.
   ///
   /// [options] configures the underlying ConfigDirector client: application
-  /// metadata, the connection mode and timeout, and logging.
+  /// metadata, the connection mode, polling interval, and timeout, and
+  /// logging.
   ///
   /// Throws a [ConfigDirectorValidationException] if [clientSdkKey] is blank.
   ConfigDirectorProvider({

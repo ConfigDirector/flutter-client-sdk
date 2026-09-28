@@ -5,6 +5,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `ConnectionOptions.pollingInterval` defaults to 60 seconds and has a minimum of 30 seconds. In
+  polling mode, a value below the minimum (including zero or a negative duration) is raised to
+  30 seconds and a single warning is logged when the client is created, instead of the client
+  throwing a `ConfigDirectorValidationException`. The options object keeps the configured value.
+
 ## [1.3.1] - 2026-09-26
 
 ### Fixed

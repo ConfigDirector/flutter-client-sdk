@@ -18,7 +18,7 @@ class PollingTransport implements Transport {
     : _options = options,
       _logger = options.logger,
       _url = options.baseUrl.resolve('client/polling/v1'),
-      _pollingInterval = options.pollingInterval ?? const Duration(seconds: 60),
+      _pollingInterval = options.pollingInterval,
       _httpClient = options.httpClient ?? http.Client(),
       _ownsHttpClient = options.httpClient == null;
 
