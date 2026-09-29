@@ -5,6 +5,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ConfigsUpdatedEvent.removedKeys`: the keys a full update no longer carried, so a listener can
+  tell a config that was removed from one that was updated. `keys` still lists only the keys the
+  update carried. It is an optional named constructor parameter defaulting to an empty list, so
+  existing `ConfigsUpdatedEvent(keys)` calls compile.
+
 ### Changed
 
 - `ConnectionOptions.pollingInterval` defaults to 60 seconds and has a minimum of 30 seconds. In

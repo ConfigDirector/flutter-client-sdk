@@ -800,8 +800,8 @@ void main() {
 
     test('emits the keys contained in the update', () async {
       final client = autoDispose(createClient());
-      final updates = <List<String>>[];
-      client.onConfigsUpdated.listen((event) => updates.add(event.keys));
+      final updates = <ConfigsUpdatedEvent>[];
+      client.onConfigsUpdated.listen(updates.add);
 
       final initialization = client.initialize();
       transport.emitConfigSet(
@@ -814,7 +814,70 @@ void main() {
       await initialization;
       await pumpEventQueue();
 
-      expect(updates.single, ['dark-mode']);
+      expect(updates.single.keys, ['dark-mode']);
+      expect(updates.single.removedKeys, isEmpty);
+    });
+
+    test('reports the keys a full set dropped as removed', () async {
+      final client = autoDispose(createClient());
+      final updates = <ConfigsUpdatedEvent>[];
+      client.onConfigsUpdated.listen(updates.add);
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+            'greeting': configState('greeting', ConfigType.string, 'hello'),
+            'max-items': configState('max-items', ConfigType.integer, '25'),
+          },
+        ),
+      );
+      await initialization;
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'greeting': configState('greeting', ConfigType.string, 'bye'),
+          },
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(updates, hasLength(2));
+      expect(updates[1].keys, ['greeting']);
+      expect(updates[1].removedKeys, ['dark-mode', 'max-items']);
+    });
+
+    test('reports nothing removed on a delta set', () async {
+      final client = autoDispose(createClient());
+      final updates = <ConfigsUpdatedEvent>[];
+      client.onConfigsUpdated.listen(updates.add);
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+          },
+        ),
+      );
+      await initialization;
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'greeting': configState('greeting', ConfigType.string, 'bye'),
+          },
+          kind: ConfigSetKind.delta,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(updates, hasLength(2));
+      expect(updates[1].keys, ['greeting']);
+      expect(updates[1].removedKeys, isEmpty);
+      expect(client.getValue('dark-mode', false), isTrue);
     });
   });
 

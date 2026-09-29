@@ -35,14 +35,20 @@ final class ClientReadyEvent {
 /// Emitted when config state is received from the server.
 @immutable
 final class ConfigsUpdatedEvent {
-  const ConfigsUpdatedEvent(this.keys);
+  const ConfigsUpdatedEvent(this.keys, {this.removedKeys = const []});
 
   /// The keys of the configs contained in the update. On a delta update, these
   /// are only the configs that changed.
   final List<String> keys;
 
+  /// The keys of the configs a full update no longer contained, so the client
+  /// stopped serving them. Empty when nothing was removed, and always empty on
+  /// a delta update.
+  final List<String> removedKeys;
+
   @override
-  String toString() => 'ConfigsUpdatedEvent(keys: $keys)';
+  String toString() =>
+      'ConfigsUpdatedEvent(keys: $keys, removedKeys: $removedKeys)';
 }
 
 /// Emitted once a new context has taken effect.

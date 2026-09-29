@@ -93,7 +93,9 @@ abstract interface class ConfigDirectorClient {
   ///
   /// The returned stream emits the config's current value on subscription and
   /// then every time the evaluated value changes. Consecutive identical values
-  /// are not re-emitted. Cancel the subscription to stop watching.
+  /// are not re-emitted. When a full update no longer carries [configKey], the
+  /// stream emits [defaultValue], as [getValue] would now return it. Cancel the
+  /// subscription to stop watching.
   ///
   /// ```dart
   /// StreamBuilder<bool>(
@@ -112,7 +114,8 @@ abstract interface class ConfigDirectorClient {
   /// Emitted when the client becomes ready after connecting.
   Stream<ClientReadyEvent> get onClientReady;
 
-  /// Emitted whenever config state is received from the server.
+  /// Emitted whenever config state is received from the server, with the keys
+  /// the update carried and the keys a full update removed.
   Stream<ConfigsUpdatedEvent> get onConfigsUpdated;
 
   /// Emitted once a new context has taken effect.

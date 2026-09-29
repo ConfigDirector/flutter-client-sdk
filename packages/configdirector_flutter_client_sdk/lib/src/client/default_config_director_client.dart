@@ -392,10 +392,15 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     final keys = configSet.configs.keys.toList(growable: false);
     final current = _configSet;
     final isFull = current == null || configSet.kind == ConfigSetKind.full;
+    final removedKeys = current == null || !isFull
+        ? const <String>[]
+        : current.configs.keys
+              .where((key) => !configSet.configs.containsKey(key))
+              .toList(growable: false);
     _configSet = isFull ? configSet : current.mergedWith(configSet);
 
     _markReady();
-    _emit(_configsUpdated, ConfigsUpdatedEvent(keys));
+    _emit(_configsUpdated, ConfigsUpdatedEvent(keys, removedKeys: removedKeys));
     final affected = isFull ? _watchers.keys.toList(growable: false) : keys;
     for (final key in affected) {
       for (final watcher in _watchers[key] ?? const <_ConfigWatcher>[]) {
@@ -404,7 +409,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
 
     _logger.debug(
-      '[ConfigDirectorClient] ConfigSet updated from server: $keys',
+      '[ConfigDirectorClient] ConfigSet updated from server: $keys, '
+      'removed: $removedKeys',
     );
   }
 
