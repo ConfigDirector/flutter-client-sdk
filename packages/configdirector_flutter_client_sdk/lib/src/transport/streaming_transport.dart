@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../client/client_events.dart';
 import '../eventsource/eventsource.dart';
 import '../logger.dart';
 import '../types.dart';
@@ -36,6 +37,7 @@ final class StreamingTransport implements Transport {
   Future<ConnectOutcome> connect(
     ConfigDirectorContext context,
     Duration timeout,
+    ClientConnectAction action,
   ) async {
     _releaseEventSource();
 

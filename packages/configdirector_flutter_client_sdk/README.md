@@ -23,6 +23,36 @@ final darkMode = client.getValue('dark-mode', false);
 
 Full details are in the [official documentation](https://docs.configdirector.com/sdks/mobile/flutter).
 
+## Test your code
+
+`package:configdirector_flutter_client_sdk/testing.dart` creates a real client connected to an
+in-memory server that your test controls, so the code under test runs against the production client
+without opening a network connection, sending telemetry, or touching a platform channel. It ships in
+the package and runs under `flutter test` on the VM and in a browser.
+
+```dart
+import 'package:configdirector_flutter_client_sdk/testing.dart';
+
+final testClient = createTestClient(values: {'new-checkout': true});
+addTearDown(testClient.client.dispose);
+await testClient.client.initialize();
+
+expect(testClient.client.getValue('new-checkout', false), isTrue);
+
+testClient.setValue('new-checkout', false);
+await pumpEventQueue();
+expect(testClient.client.getValue('new-checkout', true), isFalse);
+```
+
+The test client also holds or fails `initialize` and `updateContext` (`holdInitialization`,
+`completeInitialization`, `failInitialization`, and their `ContextUpdate` counterparts) so loading
+and error states can be tested, and records every context in `contextUpdates`. Values keep their
+type: a `bool`, an `int`, a `double`, a `String`, or a `Map` or `List` (a JSON config), and reads
+behave exactly as they do against ConfigDirector. Updates arrive asynchronously: `await
+pumpEventQueue()` in a `test`, `await tester.pumpAndSettle()` in a `testWidgets`. See [Test your
+code](https://docs.configdirector.com/sdks/mobile/flutter#test-your-code) in the documentation for
+the details.
+
 ## Documentation
 
 Refer to the [official documentation for the Flutter SDK](https://docs.configdirector.com/sdks/mobile/flutter).

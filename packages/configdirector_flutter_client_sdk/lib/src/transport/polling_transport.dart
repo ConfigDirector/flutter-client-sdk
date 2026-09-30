@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../client/client_events.dart';
 import '../errors.dart';
 import '../logger.dart';
 import '../types.dart';
@@ -44,6 +45,7 @@ class PollingTransport implements Transport {
   Future<ConnectOutcome> connect(
     ConfigDirectorContext context,
     Duration timeout,
+    ClientConnectAction action,
   ) async {
     _cancelPolling();
     _connectionGeneration += 1;

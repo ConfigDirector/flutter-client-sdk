@@ -5,6 +5,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `package:configdirector_flutter_client_sdk/testing.dart`, with `createTestClient` and `TestClient`:
+  the SDK's real client connected to an in-memory server the test controls. `setValue`,
+  `removeValue`, and `replaceValues` change the served values and reach `watch` streams,
+  `onConfigsUpdated`, and reads; `holdInitialization`, `completeInitialization`,
+  `failInitialization`, and their `ContextUpdate` counterparts control readiness; `contextUpdates`
+  records the context of every `initialize` and `updateContext`. No network connection is opened, no
+  telemetry is sent, and no platform channel is used.
+
 ### Changed
 
 - `isInitializing` now means the client is trying to get its very first config state. It becomes

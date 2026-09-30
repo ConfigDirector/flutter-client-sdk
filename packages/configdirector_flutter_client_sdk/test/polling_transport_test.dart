@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
 import 'package:configdirector_flutter_client_sdk/src/transport/polling_transport.dart';
@@ -84,6 +85,7 @@ void main() {
     final outcome = await transport.connect(
       const ConfigDirectorContext(id: 'user-1', name: 'Ada'),
       _timeout,
+      ClientConnectAction.initialization,
     );
 
     expect(outcome, ConnectOutcome.connected);
@@ -121,7 +123,11 @@ void main() {
     addTearDown(transport.dispose);
 
     final received = transport.configSets.first;
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     final configSet = await received;
     expect(configSet.kind, ConfigSetKind.full);
@@ -144,7 +150,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
       async.elapse(const Duration(seconds: 31));
 
       expect(requests.length, 2);
@@ -169,7 +181,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
       async.elapse(const Duration(seconds: 35));
 
       expect(requests.length, 4);
@@ -186,7 +204,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
       async.elapse(const Duration(seconds: 15));
       transport.close();
       async.elapse(const Duration(seconds: 60));
@@ -212,10 +236,18 @@ void main() {
       addTearDown(transport.dispose);
 
       unawaited(
-        transport.connect(const ConfigDirectorContext(id: 'user-1'), _timeout),
+        transport.connect(
+          const ConfigDirectorContext(id: 'user-1'),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
       );
       unawaited(
-        transport.connect(const ConfigDirectorContext(id: 'user-2'), _timeout),
+        transport.connect(
+          const ConfigDirectorContext(id: 'user-2'),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
       );
       async.elapse(const Duration(seconds: 25));
 
@@ -239,7 +271,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
       transport.close();
       async.elapse(const Duration(seconds: 35));
 
@@ -263,7 +301,11 @@ void main() {
       ConnectOutcome? outcome;
       unawaited(
         transport
-            .connect(const ConfigDirectorContext(), _timeout)
+            .connect(
+              const ConfigDirectorContext(),
+              _timeout,
+              ClientConnectAction.initialization,
+            )
             .then((result) => outcome = result),
       );
       async.elapse(const Duration(seconds: 11));
@@ -290,7 +332,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
       async.elapse(const Duration(seconds: 11));
 
       expect(
@@ -311,7 +359,13 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
       async.elapse(const Duration(seconds: 60));
 
       expect(
@@ -332,10 +386,12 @@ void main() {
     final first = await transport.connect(
       const ConfigDirectorContext(),
       _timeout,
+      ClientConnectAction.initialization,
     );
     final second = await transport.connect(
       const ConfigDirectorContext(),
       _timeout,
+      ClientConnectAction.initialization,
     );
 
     expect(first, ConnectOutcome.failedFatally);
@@ -355,7 +411,11 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     expect(logger.messages, contains(contains('will keep polling')));
     expect(logger.errors, contains(contains('Failed to parse the response')));
@@ -378,7 +438,11 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     expect(logger.errors, contains(contains('unexpected payload')));
   });
@@ -398,6 +462,7 @@ void main() {
     await transport.connect(
       const ConfigDirectorContext(),
       const Duration(milliseconds: 20),
+      ClientConnectAction.initialization,
     );
 
     expect(logger.errors, contains(contains('timed out')));
@@ -411,7 +476,11 @@ void main() {
 
     final configSets = <ConfigSet>[];
     transport.configSets.listen(configSets.add);
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
     await pumpEventQueue();
 
     expect(configSets, isEmpty);

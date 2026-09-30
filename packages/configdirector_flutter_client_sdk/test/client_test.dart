@@ -457,6 +457,23 @@ void main() {
       expect(readyEvents.single.action, ClientConnectAction.initialization);
     });
 
+    test('tells the transport what prompted each attempt', () async {
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await client.updateContext(const ConfigDirectorContext(id: 'user-1'));
+      client.pauseNetwork();
+      await client.resumeNetwork();
+
+      expect(transport.connectCalls.map((call) => call.action), [
+        ClientConnectAction.initialization,
+        ClientConnectAction.contextUpdate,
+        ClientConnectAction.networkResume,
+      ]);
+    });
+
     test('connects with an empty context when none is given', () async {
       final client = autoDispose(createClient());
 

@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../client/client_events.dart';
 import '../constants.dart' as constants;
 import '../logger.dart';
 import '../types.dart';
@@ -71,7 +72,7 @@ abstract interface class Transport {
 
   /// Connects using [context], returning once the connection is established,
   /// once [timeout] elapses, or once the server rejects the connection with an
-  /// unrecoverable status.
+  /// unrecoverable status. [action] is what prompted the attempt.
   ///
   /// [ConnectOutcome.connected] does not imply config state was received; that
   /// arrives on [configSets]. Never throws: failures are logged, and an
@@ -79,6 +80,7 @@ abstract interface class Transport {
   Future<ConnectOutcome> connect(
     ConfigDirectorContext context,
     Duration timeout,
+    ClientConnectAction action,
   );
 
   /// Closes the connection without releasing the transport. It can be

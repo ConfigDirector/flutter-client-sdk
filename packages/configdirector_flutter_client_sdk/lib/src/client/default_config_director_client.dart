@@ -317,6 +317,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       final outcome = await _transport.connect(
         context ?? const ConfigDirectorContext(),
         _timeout,
+        action,
       );
       if (generation != _connectionGeneration) {
         return;

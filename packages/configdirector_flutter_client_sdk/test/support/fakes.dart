@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/lifecycle.dart';
 import 'package:configdirector_flutter_client_sdk/src/logger.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
@@ -9,7 +10,11 @@ import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/widgets.dart';
 
-typedef ConnectCall = ({ConfigDirectorContext context, Duration timeout});
+typedef ConnectCall = ({
+  ConfigDirectorContext context,
+  Duration timeout,
+  ClientConnectAction action,
+});
 
 final class FakeTransport implements Transport {
   final StreamController<ConfigSet> _configSets =
@@ -40,8 +45,9 @@ final class FakeTransport implements Transport {
   Future<ConnectOutcome> connect(
     ConfigDirectorContext context,
     Duration timeout,
+    ClientConnectAction action,
   ) async {
-    connectCalls.add((context: context, timeout: timeout));
+    connectCalls.add((context: context, timeout: timeout, action: action));
     if (holdConnects) {
       final held = Completer<void>();
       heldConnects.add(held);
@@ -141,6 +147,7 @@ final class FakeEventReporter implements EventReporter {
 final class RecordingLogger implements ConfigDirectorLogger {
   final List<String> messages = [];
   final List<String> warnings = [];
+  final List<String> errorMessages = [];
   final List<String> errors = [];
 
   @override
@@ -158,8 +165,10 @@ final class RecordingLogger implements ConfigDirectorLogger {
   }
 
   @override
-  void error(String message, [Object? error, StackTrace? stackTrace]) =>
-      _record('$message${error == null ? '' : ': $error'}', error);
+  void error(String message, [Object? error, StackTrace? stackTrace]) {
+    errorMessages.add(message);
+    _record('$message${error == null ? '' : ': $error'}', error);
+  }
 
   void _record(String message, Object? error) {
     messages.add(message);

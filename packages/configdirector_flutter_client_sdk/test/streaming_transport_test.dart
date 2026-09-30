@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/streaming_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
@@ -83,6 +84,7 @@ void main() {
     await transport.connect(
       const ConfigDirectorContext(id: 'user-1'),
       _timeout,
+      ClientConnectAction.initialization,
     );
 
     final request = requests.single as http.Request;
@@ -103,7 +105,11 @@ void main() {
 
     final configSets = <ConfigSet>[];
     transport.configSets.listen(configSets.add);
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     sendEvent(
       configSetBody(
@@ -134,7 +140,11 @@ void main() {
 
       final configSets = <ConfigSet>[];
       transport.configSets.listen(configSets.add);
-      await transport.connect(const ConfigDirectorContext(), _timeout);
+      await transport.connect(
+        const ConfigDirectorContext(),
+        _timeout,
+        ClientConnectAction.initialization,
+      );
 
       sendEvent('not json');
       sendEvent(configSetBody());
@@ -156,7 +166,11 @@ void main() {
 
     final configSets = <ConfigSet>[];
     transport.configSets.listen(configSets.add);
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     sendEvent('[1, 2, 3]');
     sendEvent(configSetBody());
@@ -172,7 +186,11 @@ void main() {
 
     final configSets = <ConfigSet>[];
     transport.configSets.listen(configSets.add);
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     sendEvent(
       configSetBody(
@@ -204,6 +222,7 @@ void main() {
       final outcome = await transport.connect(
         const ConfigDirectorContext(),
         _timeout,
+        ClientConnectAction.initialization,
       );
 
       expect(outcome, ConnectOutcome.failedFatally);
@@ -227,6 +246,7 @@ void main() {
     final outcome = await transport.connect(
       const ConfigDirectorContext(),
       _timeout,
+      ClientConnectAction.initialization,
     );
 
     expect(outcome, ConnectOutcome.connected);
@@ -247,7 +267,11 @@ void main() {
     final transport = StreamingTransport(optionsWith(client));
     addTearDown(transport.dispose);
 
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     expect(attempts, 2);
     expect(requestedRetryDelays, [const Duration(milliseconds: 1)]);
@@ -268,7 +292,11 @@ void main() {
     final transport = StreamingTransport(optionsWith(client));
     addTearDown(transport.dispose);
 
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
 
     expect(attempts, 2);
     expect(requestedRetryDelays, [const Duration(milliseconds: 1)]);
@@ -286,6 +314,7 @@ void main() {
       transport.connect(
         const ConfigDirectorContext(),
         const Duration(milliseconds: 20),
+        ClientConnectAction.initialization,
       ),
       completion(ConnectOutcome.connected),
     );
@@ -300,12 +329,14 @@ void main() {
     await transport.connect(
       const ConfigDirectorContext(id: 'user-1'),
       _timeout,
+      ClientConnectAction.initialization,
     );
     final firstBody = bodies.last;
 
     await transport.connect(
       const ConfigDirectorContext(id: 'user-2'),
       _timeout,
+      ClientConnectAction.initialization,
     );
     firstBody.add(utf8.encode('data: ${configSetBody()}\n\n'));
     sendEvent(configSetBody());
@@ -321,7 +352,11 @@ void main() {
       final transport = StreamingTransport(optionsWith(streamingClient()));
       addTearDown(transport.dispose);
 
-      await transport.connect(const ConfigDirectorContext(), _timeout);
+      await transport.connect(
+        const ConfigDirectorContext(),
+        _timeout,
+        ClientConnectAction.initialization,
+      );
       transport.close();
 
       final configSets = <ConfigSet>[];
@@ -330,7 +365,11 @@ void main() {
       await pumpEventQueue();
       expect(configSets, isEmpty);
 
-      await transport.connect(const ConfigDirectorContext(), _timeout);
+      await transport.connect(
+        const ConfigDirectorContext(),
+        _timeout,
+        ClientConnectAction.initialization,
+      );
       sendEvent(configSetBody());
       await pumpEventQueue();
 
