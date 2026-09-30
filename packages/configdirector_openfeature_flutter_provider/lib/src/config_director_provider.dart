@@ -65,7 +65,8 @@ import 'resolution.dart';
 /// state received earlier, or to their default values when there is none.
 ///
 /// A configuration-changed event is emitted every time config state arrives,
-/// carrying the keys of the configs in the update.
+/// carrying the keys of the configs in the update followed by the keys of
+/// configs a full update removed.
 ///
 /// An instance serves a single registration. After OpenFeature shuts it down,
 /// create a new one.
@@ -231,7 +232,7 @@ final class ConfigDirectorProvider
     _emit(
       ProviderEvent(
         type: ProviderEventType.configurationChanged,
-        flagsChanged: event.keys,
+        flagsChanged: [...event.keys, ...event.removedKeys],
       ),
     );
   }

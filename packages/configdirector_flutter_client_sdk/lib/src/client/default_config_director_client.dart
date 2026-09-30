@@ -178,13 +178,12 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   bool get isReady => _ready;
 
   @override
-  bool get isInitializing => _initializing;
+  bool get isInitializing => _initializing && _configSet == null;
 
   @override
-  Future<void> initialize([ConfigDirectorContext? context]) async {
+  Future<void> initialize([ConfigDirectorContext? context]) {
     _initializing = true;
-    await _connect(context, ClientConnectAction.initialization);
-    _initializing = false;
+    return _connect(context, ClientConnectAction.initialization);
   }
 
   @override
@@ -290,6 +289,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
     _readyCompleter = null;
     _ready = false;
+    _initializing = false;
 
     _transport.dispose();
     unawaited(_clientReady.close());
@@ -314,11 +314,15 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
 
       await _appInfoResolved;
       final stopwatch = Stopwatch()..start();
-      await _transport.connect(
+      final outcome = await _transport.connect(
         context ?? const ConfigDirectorContext(),
         _timeout,
       );
       if (generation != _connectionGeneration) {
+        return;
+      }
+      if (outcome == ConnectOutcome.failedFatally) {
+        _initializing = false;
         return;
       }
       _currentContext = context;
@@ -339,6 +343,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         );
       }
     } on Object catch (error, stackTrace) {
+      _initializing = false;
       _logger.error(
         '[ConfigDirectorClient] An error occurred during ${action.description}',
         error,

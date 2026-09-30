@@ -52,19 +52,34 @@ final class TransportOptions {
   };
 }
 
+/// How a [Transport.connect] call ended.
+enum ConnectOutcome {
+  /// The connection is established, or the transport is still trying to
+  /// establish it after a transient failure or a timeout.
+  connected,
+
+  /// The server rejected the connection with an unrecoverable status and the
+  /// transport stopped trying.
+  failedFatally,
+}
+
 /// Retrieves config state from the ConfigDirector server and publishes it on
 /// [configSets].
 abstract interface class Transport {
   /// Emits every config set received from the server.
   Stream<ConfigSet> get configSets;
 
-  /// Connects using [context], returning once the connection is established, or
-  /// once [timeout] elapses.
+  /// Connects using [context], returning once the connection is established,
+  /// once [timeout] elapses, or once the server rejects the connection with an
+  /// unrecoverable status.
   ///
-  /// Completing does not imply config state was received; that arrives on
-  /// [configSets]. Never throws: failures are logged, and an unrecoverable one
-  /// stops the transport from retrying.
-  Future<void> connect(ConfigDirectorContext context, Duration timeout);
+  /// [ConnectOutcome.connected] does not imply config state was received; that
+  /// arrives on [configSets]. Never throws: failures are logged, and an
+  /// unrecoverable one stops the transport from retrying.
+  Future<ConnectOutcome> connect(
+    ConfigDirectorContext context,
+    Duration timeout,
+  );
 
   /// Closes the connection without releasing the transport. It can be
   /// reconnected by calling [connect] again.

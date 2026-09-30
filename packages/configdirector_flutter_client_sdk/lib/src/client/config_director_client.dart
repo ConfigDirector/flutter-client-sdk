@@ -56,9 +56,14 @@ abstract interface class ConfigDirectorClient {
   /// succeeded and config state was received.
   bool get isReady;
 
-  /// Whether the client is currently initializing. It is `false` on creation,
-  /// `true` after [initialize] is called, and `false` again once initialization
-  /// completes.
+  /// Whether the client is trying to get its very first config state from the
+  /// server.
+  ///
+  /// It is `false` on creation, becomes `true` when [initialize] is called on a
+  /// client that has never received config state, stays `true` through timeouts
+  /// and retries, and becomes `false` when the first config state arrives, when
+  /// an unrecoverable connection error stops the retries, or on [dispose].
+  /// [updateContext] and [resumeNetwork] never set it.
   bool get isInitializing;
 
   /// Evaluates [configKey] against the current context and targeting rules.

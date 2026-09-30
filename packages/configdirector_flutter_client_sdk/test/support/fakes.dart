@@ -22,6 +22,9 @@ final class FakeTransport implements Transport {
   /// Thrown by the next call to [connect], when set.
   Object? connectError;
 
+  /// Returned by every call to [connect].
+  ConnectOutcome connectOutcome = ConnectOutcome.connected;
+
   /// Delays [connect] before it completes, to exercise the connect timeout.
   Duration connectDelay = Duration.zero;
 
@@ -34,7 +37,10 @@ final class FakeTransport implements Transport {
   Stream<ConfigSet> get configSets => _configSets.stream;
 
   @override
-  Future<void> connect(ConfigDirectorContext context, Duration timeout) async {
+  Future<ConnectOutcome> connect(
+    ConfigDirectorContext context,
+    Duration timeout,
+  ) async {
     connectCalls.add((context: context, timeout: timeout));
     if (holdConnects) {
       final held = Completer<void>();
@@ -48,6 +54,7 @@ final class FakeTransport implements Transport {
     if (error != null) {
       throw error;
     }
+    return connectOutcome;
   }
 
   void emitConfigSet(ConfigSet configSet) => _configSets.add(configSet);

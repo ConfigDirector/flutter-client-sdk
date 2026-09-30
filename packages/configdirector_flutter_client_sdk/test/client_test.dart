@@ -551,17 +551,89 @@ void main() {
       );
     });
 
-    test(
-      'is no longer initializing once initialize gives up waiting',
-      () async {
-        final client = autoDispose(createClient());
+    test('returns at once when the server rejects the connection', () async {
+      transport.connectOutcome = ConnectOutcome.failedFatally;
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            timeout: Duration(milliseconds: 500),
+          ),
+        ),
+      );
+      final contexts = <ConfigDirectorContext?>[];
+      client.onContextUpdated.listen((event) => contexts.add(event.context));
 
-        await client.initialize();
+      final stopwatch = Stopwatch()..start();
+      await client.initialize(const ConfigDirectorContext(id: 'user-1'));
+      await pumpEventQueue();
 
-        expect(client.isReady, isFalse);
-        expect(client.isInitializing, isFalse);
-      },
-    );
+      expect(stopwatch.elapsed, lessThan(const Duration(milliseconds: 250)));
+      expect(client.isReady, isFalse);
+      expect(client.context, isNull);
+      expect(contexts, isEmpty);
+      expect(telemetry.contextUpdates, isEmpty);
+      expect(logger.warnings, isNot(contains(contains('Timed out'))));
+    });
+  });
+
+  group('isInitializing', () {
+    test('stays true after initialize gives up waiting', () async {
+      final client = autoDispose(createClient());
+
+      await client.initialize();
+
+      expect(client.isReady, isFalse);
+      expect(client.isInitializing, isTrue);
+    });
+
+    test('turns false when the server rejects the connection', () async {
+      transport.connectOutcome = ConnectOutcome.failedFatally;
+      final client = autoDispose(createClient());
+
+      await client.initialize();
+
+      expect(client.isInitializing, isFalse);
+    });
+
+    test('turns false on dispose', () async {
+      transport.holdConnects = true;
+      final client = createClient();
+
+      final initialization = client.initialize();
+      await pumpEventQueue();
+      expect(client.isInitializing, isTrue);
+
+      client.dispose();
+      transport.heldConnects.single.complete();
+      await initialization;
+
+      expect(client.isInitializing, isFalse);
+    });
+
+    test('is not set by initialize once config state was received', () async {
+      final client = autoDispose(createClient());
+      final initialization = client.initialize();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      final second = client.initialize();
+      expect(client.isInitializing, isFalse);
+      await second;
+
+      expect(client.isInitializing, isFalse);
+    });
+
+    test('is not set by updateContext', () async {
+      final client = autoDispose(createClient());
+
+      final update = client.updateContext(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      expect(client.isInitializing, isFalse);
+      await update;
+
+      expect(client.isInitializing, isFalse);
+    });
   });
 
   group('polling', () {

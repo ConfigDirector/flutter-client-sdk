@@ -201,8 +201,12 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      await transport.connect(const ConfigDirectorContext(), _timeout);
+      final outcome = await transport.connect(
+        const ConfigDirectorContext(),
+        _timeout,
+      );
 
+      expect(outcome, ConnectOutcome.failedFatally);
       expect(
         logger.messages,
         contains(
@@ -215,6 +219,18 @@ void main() {
       expect(requestedRetryDelays, isEmpty);
     },
   );
+
+  test('reports the connection as established once the stream opens', () async {
+    final transport = StreamingTransport(optionsWith(streamingClient()));
+    addTearDown(transport.dispose);
+
+    final outcome = await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+    );
+
+    expect(outcome, ConnectOutcome.connected);
+  });
 
   test('retries after a recoverable failure', () async {
     var attempts = 0;
@@ -271,7 +287,7 @@ void main() {
         const ConfigDirectorContext(),
         const Duration(milliseconds: 20),
       ),
-      completes,
+      completion(ConnectOutcome.connected),
     );
   });
 

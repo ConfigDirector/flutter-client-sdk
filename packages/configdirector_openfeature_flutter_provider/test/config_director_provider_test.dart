@@ -196,6 +196,14 @@ void main() {
     expect(events.single.flagsChanged, ['dark-mode', 'max-items']);
   });
 
+  test('reports removed keys as changed flags', () async {
+    client.receiveConfigs(['dark-mode'], removedKeys: ['max-items', 'theme']);
+    await deliverClientEvents();
+
+    expect(eventTypes(), [ProviderEventType.configurationChanged]);
+    expect(events.single.flagsChanged, ['dark-mode', 'max-items', 'theme']);
+  });
+
   group('resolution', () {
     setUp(() {
       client.values.addAll({

@@ -33,10 +33,13 @@ final class StreamingTransport implements Transport {
   Stream<ConfigSet> get configSets => _configSets.stream;
 
   @override
-  Future<void> connect(ConfigDirectorContext context, Duration timeout) async {
+  Future<ConnectOutcome> connect(
+    ConfigDirectorContext context,
+    Duration timeout,
+  ) async {
     _releaseEventSource();
 
-    final connected = Completer<void>();
+    final connected = Completer<ConnectOutcome>();
 
     final eventSource = EventSourceClient(
       url: _url,
@@ -59,25 +62,28 @@ final class StreamingTransport implements Transport {
     _readyStateSubscription = eventSource.readyStates.listen((state) {
       if (state == ReadyState.open && !connected.isCompleted) {
         _logger.debug('[StreamingTransport] Connected');
-        connected.complete();
+        connected.complete(ConnectOutcome.connected);
       }
     });
     eventSource.connect();
 
     final timeoutTimer = Timer(timeout, () {
       if (!connected.isCompleted) {
-        connected.complete();
+        connected.complete(ConnectOutcome.connected);
       }
     });
 
     try {
-      await connected.future;
+      return await connected.future;
     } finally {
       timeoutTimer.cancel();
     }
   }
 
-  bool _shouldReconnect(ReconnectionState state, Completer<void> connected) {
+  bool _shouldReconnect(
+    ReconnectionState state,
+    Completer<ConnectOutcome> connected,
+  ) {
     if (!isStatusFatal(state.status)) {
       return true;
     }
@@ -86,7 +92,7 @@ final class StreamingTransport implements Transport {
       '[StreamingTransport] ${_fatalErrorMessage(state.status, state.error)}',
     );
     if (!connected.isCompleted) {
-      connected.complete();
+      connected.complete(ConnectOutcome.failedFatally);
     }
     return false;
   }

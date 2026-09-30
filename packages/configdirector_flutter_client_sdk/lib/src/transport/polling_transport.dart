@@ -41,7 +41,10 @@ class PollingTransport implements Transport {
   Stream<ConfigSet> get configSets => _configSets.stream;
 
   @override
-  Future<void> connect(ConfigDirectorContext context, Duration timeout) async {
+  Future<ConnectOutcome> connect(
+    ConfigDirectorContext context,
+    Duration timeout,
+  ) async {
     _cancelPolling();
     _connectionGeneration += 1;
     final generation = _connectionGeneration;
@@ -68,6 +71,9 @@ class PollingTransport implements Transport {
         _schedulePolling(context, timeout);
       }
     }
+    return _hasFatalError
+        ? ConnectOutcome.failedFatally
+        : ConnectOutcome.connected;
   }
 
   void _schedulePolling(ConfigDirectorContext context, Duration timeout) {

@@ -81,11 +81,12 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await transport.connect(
+    final outcome = await transport.connect(
       const ConfigDirectorContext(id: 'user-1', name: 'Ada'),
       _timeout,
     );
 
+    expect(outcome, ConnectOutcome.connected);
     final request = requests.single;
     expect(request.method, 'POST');
     expect(request.url, Uri.parse('https://sdk.example.com/client/polling/v1'));
@@ -259,9 +260,15 @@ void main() {
       );
       addTearDown(transport.dispose);
 
-      unawaited(transport.connect(const ConfigDirectorContext(), _timeout));
+      ConnectOutcome? outcome;
+      unawaited(
+        transport
+            .connect(const ConfigDirectorContext(), _timeout)
+            .then((result) => outcome = result),
+      );
       async.elapse(const Duration(seconds: 11));
 
+      expect(outcome, ConnectOutcome.connected);
       expect(
         logger.messages,
         contains(contains('The initial fetch failed, will keep polling')),
@@ -322,9 +329,17 @@ void main() {
     );
     addTearDown(transport.dispose);
 
-    await transport.connect(const ConfigDirectorContext(), _timeout);
-    await transport.connect(const ConfigDirectorContext(), _timeout);
+    final first = await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+    );
+    final second = await transport.connect(
+      const ConfigDirectorContext(),
+      _timeout,
+    );
 
+    expect(first, ConnectOutcome.failedFatally);
+    expect(second, ConnectOutcome.failedFatally);
     expect(requests.length, 1);
     expect(
       logger.messages.any(

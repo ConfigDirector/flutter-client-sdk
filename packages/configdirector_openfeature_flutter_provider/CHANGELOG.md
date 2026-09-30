@@ -7,6 +7,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Configuration-changed events list the keys of configs that a full update removed after the keys
+  the update carried, so flags backed by a removed config re-evaluate to their default values.
+  Requires version 1.4.0 of `configdirector_flutter_client_sdk`.
 - `ConnectionOptions.pollingInterval` defaults to 60 seconds and has a minimum of 30 seconds. In
   polling mode, a value below the minimum is raised to 30 seconds with a warning from the
   underlying `configdirector_flutter_client_sdk` client, which no longer throws for a zero or

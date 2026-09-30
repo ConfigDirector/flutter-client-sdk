@@ -104,8 +104,11 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
     _clientReady.add(ClientReadyEvent(action));
   }
 
-  void receiveConfigs(List<String> keys) {
-    _configsUpdated.add(ConfigsUpdatedEvent(keys));
+  void receiveConfigs(
+    List<String> keys, {
+    List<String> removedKeys = const [],
+  }) {
+    _configsUpdated.add(ConfigsUpdatedEvent(keys, removedKeys: removedKeys));
   }
 
   Future<void> _connect(

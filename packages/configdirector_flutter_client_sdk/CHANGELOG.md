@@ -5,6 +5,23 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `isInitializing` now means the client is trying to get its very first config state. It becomes
+  `true` when `initialize` is called on a client that has never received config state, stays
+  `true` through timeouts and retries, and becomes `false` when the first config state arrives,
+  when an unrecoverable connection error stops the retries, or on `dispose`. Before, it turned
+  `false` as soon as `initialize` returned, including after a timeout while the client kept
+  retrying, and a later `initialize` on a client that already had config state set it again.
+
+### Fixed
+
+- `initialize` returns as soon as the server rejects the connection with an unrecoverable status
+  (for example an invalid SDK key) instead of waiting out the connection timeout, no longer logs
+  that the client will keep retrying, and no longer applies the context or emits
+  `ContextUpdatedEvent` for a connection that was never established. The client stays not ready
+  and every read serves the in-code default value, as before.
+
 ## [1.4.0] - 2026-09-29
 
 ### Added
