@@ -71,6 +71,25 @@ if (details.errorCode == ErrorCode.providerNotReady) {
 }
 ```
 
+## Test your code
+
+Tests of code that reads flags through OpenFeature swap the provider for the in-memory one the OpenFeature Dart client SDK ships, `InMemoryProvider`, so the test controls the values and nothing from ConfigDirector is involved:
+
+```dart
+import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk.dart';
+
+final provider = InMemoryProvider({'new-checkout': true, 'max-items': 20});
+await OpenFeatureAPI.instance.setProviderAndWait(provider);
+final client = OpenFeatureAPI.instance.getClient();
+
+expect(client.getBooleanValue('new-checkout', false), isTrue);
+
+provider.replaceAll({'new-checkout': false, 'max-items': 20});
+expect(client.getBooleanValue('new-checkout', true), isFalse);
+```
+
+Shut OpenFeature down after each test with `OpenFeatureAPI.instance.shutdown()`. Full details are in the [testing section of the official documentation](https://docs.configdirector.com/sdks/openfeature/flutter#test-your-code).
+
 ## Documentation
 
 Refer to the [official documentation for the OpenFeature Flutter provider](https://docs.configdirector.com/sdks/openfeature/flutter).

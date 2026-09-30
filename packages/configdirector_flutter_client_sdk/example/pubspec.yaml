@@ -13,6 +13,10 @@ dependencies:
   configdirector_flutter_client_sdk: ^1.4.0
   cupertino_icons: ^1.0.8
 
+dependency_overrides:
+  configdirector_flutter_client_sdk:
+    path: ../
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

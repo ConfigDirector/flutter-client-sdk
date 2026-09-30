@@ -64,6 +64,8 @@ dependencies:
 flutter test
 ```
 
-The screen is tested against [a stub client](test/support/fake_client.dart)
-rather than a real connection, which is also how you would keep your own widget
-tests off the network.
+The screen is tested against the SDK's test client from
+`package:configdirector_flutter_client_sdk/testing.dart`: the real client over
+an in-memory connection that the test controls, so no network is involved. That
+is also how you would keep your own widget tests off the network. See
+[test/home_page_test.dart](test/home_page_test.dart).
