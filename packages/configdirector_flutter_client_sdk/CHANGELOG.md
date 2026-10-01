@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-01
+
 ### Added
 
 - `package:configdirector_flutter_client_sdk/testing.dart`, with `createTestClient` and `TestClient`:
