@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 
 import '../client/client_events.dart';
+import '../client_session.dart';
 import '../constants.dart' as constants;
 import '../logger.dart';
 import '../types.dart';
@@ -15,7 +16,7 @@ final class TransportOptions {
     required this.clientSdkKey,
     required this.baseUrl,
     required this.metaContext,
-    required this.instanceId,
+    required this.clientSession,
     required this.logger,
     required this.connectionRetryDelay,
     this.httpClient,
@@ -30,7 +31,8 @@ final class TransportOptions {
   /// happens before the first [Transport.connect].
   SdkMetaContext metaContext;
 
-  final String instanceId;
+  ClientSession clientSession;
+
   final ConfigDirectorLogger logger;
   final ConnectionRetryDelay connectionRetryDelay;
 
@@ -48,7 +50,8 @@ final class TransportOptions {
     'givenContext': context.toJson(),
     'metaContext': metaContext.toJson(),
     'clientSdkKey': clientSdkKey,
-    'instanceId': instanceId,
+    'instanceId': clientSession.instanceId,
+    if (clientSession.ephemeral) 'ephemeral': true,
     if (lastUpdateTimestamp != null) 'lastUpdateTimestamp': lastUpdateTimestamp,
   };
 }

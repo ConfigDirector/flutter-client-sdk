@@ -597,6 +597,7 @@ void main() {
 
       expect(logger.messages, isNot(contains(contains('app name'))));
       expect(logger.messages, isNot(contains(contains('widgets binding'))));
+      expect(logger.warnings, isEmpty);
     });
   });
 

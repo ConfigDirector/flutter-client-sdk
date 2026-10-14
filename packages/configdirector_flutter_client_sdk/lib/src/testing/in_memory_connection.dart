@@ -6,6 +6,7 @@ import '../client/client_events.dart';
 import '../client/client_options.dart';
 import '../client/config_director_client.dart';
 import '../client/default_config_director_client.dart';
+import '../client_session.dart';
 import '../lifecycle.dart';
 import '../logger.dart';
 import '../telemetry/telemetry_client.dart';
@@ -44,6 +45,7 @@ final class InMemoryConnection {
       lifecycleWatcher: const _NoLifecycleWatcher(),
       appInfoResolver: () async => const ConfigDirectorMetaContext(),
       telemetryClient: const _NoTelemetryClient(),
+      clientSession: ClientSession.provisional(),
     );
   }
 

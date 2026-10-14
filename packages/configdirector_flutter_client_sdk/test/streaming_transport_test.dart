@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
+import 'package:configdirector_flutter_client_sdk/src/client_session.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/streaming_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
@@ -34,22 +35,26 @@ void main() {
     }
   });
 
-  TransportOptions optionsWith(http.Client client) => TransportOptions(
-    clientSdkKey: 'a-client-sdk-key',
-    baseUrl: Uri.parse('https://sdk.example.com'),
-    metaContext: const SdkMetaContext(
-      sdkName: 'flutter-client-sdk',
-      sdkVersion: '0.0.1',
-    ),
-    instanceId: 'instance-id',
-    logger: logger,
-    connectionRetryDelay: (attempt) {
-      final delay = Duration(milliseconds: attempt);
-      requestedRetryDelays.add(delay);
-      return delay;
-    },
-    httpClient: client,
-  );
+  TransportOptions optionsWith(http.Client client, {bool ephemeral = false}) =>
+      TransportOptions(
+        clientSdkKey: 'a-client-sdk-key',
+        baseUrl: Uri.parse('https://sdk.example.com'),
+        metaContext: const SdkMetaContext(
+          sdkName: 'flutter-client-sdk',
+          sdkVersion: '0.0.1',
+        ),
+        clientSession: ClientSession(
+          instanceId: 'instance-id',
+          ephemeral: ephemeral,
+        ),
+        logger: logger,
+        connectionRetryDelay: (attempt) {
+          final delay = Duration(milliseconds: attempt);
+          requestedRetryDelays.add(delay);
+          return delay;
+        },
+        httpClient: client,
+      );
 
   /// A client that opens a server-sent events stream the test can write to.
   MockClient streamingClient({int status = 200}) =>
@@ -98,6 +103,32 @@ void main() {
       'instanceId': 'instance-id',
     });
   });
+
+  test(
+    'marks the instance ID ephemeral in the payload when it is not backed by '
+    'storage',
+    () async {
+      final transport = StreamingTransport(
+        optionsWith(streamingClient(), ephemeral: true),
+      );
+      addTearDown(transport.dispose);
+
+      await transport.connect(
+        const ConfigDirectorContext(),
+        _timeout,
+        ClientConnectAction.initialization,
+      );
+
+      final request = requests.single as http.Request;
+      expect(
+        jsonDecode(request.body),
+        allOf(
+          containsPair('instanceId', 'instance-id'),
+          containsPair('ephemeral', true),
+        ),
+      );
+    },
+  );
 
   test('emits a config set for every message received', () async {
     final transport = StreamingTransport(optionsWith(streamingClient()));

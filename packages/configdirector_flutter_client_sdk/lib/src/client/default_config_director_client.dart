@@ -4,13 +4,14 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
-import 'package:uuid/uuid.dart';
 
+import '../client_session.dart';
 import '../constants.dart' as constants;
 import '../errors.dart';
 import '../lifecycle.dart';
 import '../logger.dart';
 import '../platform/app_info.dart';
+import '../platform/instance_id_storage.dart';
 import '../platform/user_agent.dart';
 import '../sdk_identity.dart';
 import '../telemetry/reporter_factory.dart';
@@ -52,6 +53,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     String? Function()? userAgentResolver,
     AppInfoResolver? appInfoResolver,
     TelemetryClient? telemetryClient,
+    InstanceIdStorage? instanceIdStorage,
+    ClientSession? clientSession,
   }) {
     _validateSdkKey(clientSdkKey);
 
@@ -60,6 +63,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     _validateConnection(connection);
     final baseUrl = _resolveBaseUrl(connection.baseUrl);
     final pollingInterval = _resolvePollingInterval(connection, logger);
+    final provisionalSession = clientSession ?? ClientSession.provisional();
 
     final transportOptions = TransportOptions(
       clientSdkKey: clientSdkKey,
@@ -70,7 +74,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         metadata: options?.metadata,
         userAgent: (userAgentResolver ?? resolveUserAgent)(),
       ),
-      instanceId: const Uuid().v4(),
+      clientSession: provisionalSession,
       logger: logger,
       connectionRetryDelay: connectionRetryDelay ?? _exponentialRetryDelay,
       httpClient: httpClient,
@@ -100,6 +104,14 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           lifecycleWatcher ?? WidgetsBindingLifecycleWatcher(logger),
       metadata: options?.metadata,
       appInfoResolver: appInfoResolver ?? resolveAppInfo,
+      settledClientSession: clientSession != null
+          ? Future.value(clientSession)
+          : settleClientSession(
+              provisional: provisionalSession,
+              storage:
+                  instanceIdStorage ?? sharedPreferencesInstanceIdStorage(),
+              logger: logger,
+            ),
     );
   }
 
@@ -113,6 +125,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     required AppLifecycleWatcher lifecycleWatcher,
     required ConfigDirectorMetaContext? metadata,
     required AppInfoResolver appInfoResolver,
+    required Future<ClientSession> settledClientSession,
   }) : _logger = logger,
        _timeout = timeout,
        _telemetry = telemetry,
@@ -122,7 +135,12 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
        _lifecycleWatcher = lifecycleWatcher {
     _configSetSubscription = _transport.configSets.listen(_handleConfigSet);
     _lifecycleWatcher.start(_handleLifecycleState);
-    _appInfoResolved = _resolveAppInfo(metadata, appInfoResolver);
+    _connectPrerequisites = Future.wait([
+      _resolveAppInfo(metadata, appInfoResolver),
+      settledClientSession.then(
+        (session) => _transportOptions.clientSession = session,
+      ),
+    ]);
   }
 
   final ConfigDirectorLogger _logger;
@@ -134,7 +152,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   final AppLifecycleWatcher _lifecycleWatcher;
 
   late final StreamSubscription<ConfigSet> _configSetSubscription;
-  late final Future<void> _appInfoResolved;
+  late final Future<void> _connectPrerequisites;
 
   final Map<String, List<_ConfigWatcher>> _watchers = {};
 
@@ -312,7 +330,10 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       final readyCompleter = Completer<void>();
       _readyCompleter = readyCompleter;
 
-      await _appInfoResolved;
+      await _connectPrerequisites;
+      if (_disposed) {
+        return;
+      }
       final stopwatch = Stopwatch()..start();
       final outcome = await _transport.connect(
         context ?? const ConfigDirectorContext(),

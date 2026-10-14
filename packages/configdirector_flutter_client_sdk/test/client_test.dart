@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/client_session.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
 import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
@@ -10,6 +11,7 @@ import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_value.
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/sdk_identity.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,12 +21,15 @@ import 'dart:convert';
 
 import 'support/fakes.dart';
 
+const String _storedInstanceId = '11111111-1111-4111-8111-111111111111';
+
 void main() {
   late FakeTransport transport;
   late FakeLifecycleWatcher lifecycleWatcher;
   late FakeTelemetryClient telemetry;
   late RecordingLogger logger;
   late List<TransportOptions> transportOptions;
+  late FakeInstanceIdStorage instanceIdStorage;
 
   DefaultConfigDirectorClient createClient({
     ConnectionOptions? connection,
@@ -33,6 +38,7 @@ void main() {
     AppInfoResolver? appInfoResolver,
     TelemetryClient? telemetryClient,
     SdkIdentity? identity,
+    ClientSession? clientSession,
   }) => DefaultConfigDirectorClient(
     'a-client-sdk-key',
     identity: identity ?? flutterClientSdkIdentity,
@@ -56,6 +62,8 @@ void main() {
     // not depend on what the host running them reports.
     appInfoResolver:
         appInfoResolver ?? () async => const ConfigDirectorMetaContext(),
+    instanceIdStorage: instanceIdStorage,
+    clientSession: clientSession,
   );
 
   setUp(() {
@@ -64,7 +72,11 @@ void main() {
     telemetry = FakeTelemetryClient();
     logger = RecordingLogger();
     transportOptions = [];
+    instanceIdStorage = FakeInstanceIdStorage();
   });
+
+  String record({required int createdAt}) =>
+      jsonEncode({'v': 1, 'id': _storedInstanceId, 'createdAt': createdAt});
 
   group('meta context', () {
     test('identifies the SDK and the host platform', () {
@@ -210,23 +222,171 @@ void main() {
         contains(contains('could not find an app name and version')),
       );
     });
+  });
 
-    test('gives each client a distinct v4 instance id', () {
+  group('client session', () {
+    test(
+      'connects with the stored instance ID, not marked ephemeral',
+      () async {
+        instanceIdStorage.record = record(
+          createdAt: DateTime.now().millisecondsSinceEpoch - 60000,
+        );
+        final client = autoDispose(createClient());
+
+        final initialization = client.initialize();
+        await pumpEventQueue();
+        transport.emitConfigSet(configSet(configs: const {}));
+        await initialization;
+
+        expect(transport.connectCalls, hasLength(1));
+        expect(
+          transportOptions.single.clientSession.instanceId,
+          _storedInstanceId,
+        );
+        expect(transportOptions.single.clientSession.ephemeral, isFalse);
+        expect(instanceIdStorage.writes, isEmpty);
+      },
+    );
+
+    test(
+      'generates and stores a v4 instance ID when nothing is stored',
+      () async {
+        autoDispose(createClient());
+        await pumpEventQueue();
+
+        final session = transportOptions.single.clientSession;
+        expect(session.instanceId, matches(uuidV4Pattern));
+        expect(session.ephemeral, isFalse);
+        expect(
+          jsonDecode(instanceIdStorage.record!),
+          containsPair('id', session.instanceId),
+        );
+      },
+    );
+
+    test('shares the stored instance ID with a client created later', () async {
       autoDispose(createClient());
-      final firstId = transportOptions.single.instanceId;
+      await pumpEventQueue();
+      final firstId = transportOptions.single.clientSession.instanceId;
+
       transport = FakeTransport();
       autoDispose(createClient());
-      final secondId = transportOptions.last.instanceId;
+      await pumpEventQueue();
 
+      expect(transportOptions.last.clientSession.instanceId, firstId);
+      expect(transportOptions.last.clientSession.ephemeral, isFalse);
+    });
+
+    test('defers the connection and the telemetry context until the storage '
+        'answers', () async {
+      instanceIdStorage.record = record(
+        createdAt: DateTime.now().millisecondsSinceEpoch - 60000,
+      );
+      instanceIdStorage.heldRead = Completer<void>();
+      final client = autoDispose(createClient());
+      const context = ConfigDirectorContext(id: 'user-1');
+
+      final initialization = client.initialize(context);
+      await pumpEventQueue();
+
+      expect(transport.connectCalls, isEmpty);
+      expect(telemetry.contextUpdates, isEmpty);
+      expect(client.getValue('dark-mode', false), isFalse);
+
+      instanceIdStorage.heldRead!.complete();
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      expect(transport.connectCalls.single.context, context);
       expect(
-        firstId,
-        matches(
-          RegExp(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-          ),
+        transportOptions.single.clientSession.instanceId,
+        _storedInstanceId,
+      );
+      expect(telemetry.contextUpdates, [context]);
+      expect(client.isReady, isTrue);
+    });
+
+    test(
+      'connects with the provisional instance ID, marked ephemeral, when the '
+      'storage has not answered after one second, and keeps it',
+      () {
+        fakeAsync((async) {
+          instanceIdStorage.record = record(
+            createdAt: DateTime.now().millisecondsSinceEpoch - 60000,
+          );
+          instanceIdStorage.heldRead = Completer<void>();
+          final client = autoDispose(createClient());
+
+          client.initialize();
+          async.elapse(const Duration(milliseconds: 999));
+
+          expect(transport.connectCalls, isEmpty);
+
+          async.elapse(const Duration(milliseconds: 1));
+
+          expect(transport.connectCalls, hasLength(1));
+          final session = transportOptions.single.clientSession;
+          expect(session.instanceId, matches(uuidV4Pattern));
+          expect(session.ephemeral, isTrue);
+          expect(instanceIdStorage.writes, isEmpty);
+
+          transport.emitConfigSet(configSet(configs: const {}));
+          async.flushMicrotasks();
+          instanceIdStorage.heldRead!.complete();
+          client.updateContext(const ConfigDirectorContext(id: 'user-1'));
+          async.flushMicrotasks();
+
+          expect(transport.connectCalls, hasLength(2));
+          expect(transportOptions.single.clientSession, same(session));
+        });
+      },
+    );
+
+    test('connects with an ephemeral instance ID when the storage cannot be '
+        'read', () async {
+      instanceIdStorage.readFailure = StateError('preferences unavailable');
+      final client = autoDispose(createClient());
+
+      await client.initialize();
+
+      expect(transport.connectCalls, hasLength(1));
+      expect(transportOptions.single.clientSession.ephemeral, isTrue);
+      expect(instanceIdStorage.writes, isEmpty);
+    });
+
+    test('connects with the given session as it is', () async {
+      const session = ClientSession(instanceId: 'given', ephemeral: true);
+      final client = autoDispose(
+        createClient(
+          clientSession: session,
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
         ),
       );
-      expect(secondId, isNot(firstId));
+
+      final initialization = client.initialize();
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      expect(transportOptions.single.clientSession, same(session));
+      expect(instanceIdStorage.writes, isEmpty);
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('does not connect when disposed before the session settles', () async {
+      instanceIdStorage.heldRead = Completer<void>();
+      final client = createClient();
+
+      final initialization = client.initialize();
+      await pumpEventQueue();
+
+      client.dispose();
+      instanceIdStorage.heldRead!.complete();
+      await initialization;
+
+      expect(transport.connectCalls, isEmpty);
+      expect(client.isInitializing, isFalse);
     });
   });
 

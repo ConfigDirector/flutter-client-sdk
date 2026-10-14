@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
+import 'package:configdirector_flutter_client_sdk/src/client_session.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
 import 'package:configdirector_flutter_client_sdk/src/transport/polling_transport.dart';
@@ -48,6 +49,7 @@ void main() {
   TransportOptions optionsWith(
     http.Client client, {
     Duration pollingInterval = constants.defaultPollingInterval,
+    bool ephemeral = false,
   }) => TransportOptions(
     clientSdkKey: 'a-client-sdk-key',
     baseUrl: Uri.parse('https://sdk.example.com'),
@@ -59,7 +61,10 @@ void main() {
         appVersion: '1.2.3',
       ),
     ),
-    instanceId: 'instance-id',
+    clientSession: ClientSession(
+      instanceId: 'instance-id',
+      ephemeral: ephemeral,
+    ),
     logger: logger,
     connectionRetryDelay: (_) => Duration.zero,
     httpClient: client,
@@ -104,6 +109,34 @@ void main() {
       'instanceId': 'instance-id',
     });
   });
+
+  test(
+    'marks the instance ID ephemeral in the payload when it is not backed by '
+    'storage',
+    () async {
+      final transport = PollingTransport(
+        optionsWith(
+          respondWith([http.Response(configSetBody(), 200)]),
+          ephemeral: true,
+        ),
+      );
+      addTearDown(transport.dispose);
+
+      await transport.connect(
+        const ConfigDirectorContext(),
+        _timeout,
+        ClientConnectAction.initialization,
+      );
+
+      expect(
+        jsonDecode(requests.single.body),
+        allOf(
+          containsPair('instanceId', 'instance-id'),
+          containsPair('ephemeral', true),
+        ),
+      );
+    },
+  );
 
   test('emits the config set it receives', () async {
     final transport = PollingTransport(

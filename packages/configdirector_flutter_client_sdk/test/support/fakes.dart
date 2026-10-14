@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
+import 'package:configdirector_flutter_client_sdk/src/client_session.dart';
 import 'package:configdirector_flutter_client_sdk/src/lifecycle.dart';
 import 'package:configdirector_flutter_client_sdk/src/logger.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
@@ -202,3 +203,43 @@ ConfigState configState(
   value: value,
   valueId: valueId,
 );
+
+final RegExp uuidV4Pattern = RegExp(
+  r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+);
+
+final class FakeInstanceIdStorage implements InstanceIdStorage {
+  String? record;
+  Object? readFailure;
+  Object? writeFailure;
+  bool writeStores = true;
+  final List<String> writes = [];
+
+  Completer<void>? heldRead;
+  Completer<void>? heldWrite;
+
+  @override
+  Future<String?> read() async {
+    await heldRead?.future;
+    final failure = readFailure;
+    if (failure != null) {
+      throw failure;
+    }
+    return record;
+  }
+
+  @override
+  Future<bool> write(String record) async {
+    writes.add(record);
+    await heldWrite?.future;
+    final failure = writeFailure;
+    if (failure != null) {
+      throw failure;
+    }
+    if (!writeStores) {
+      return false;
+    }
+    this.record = record;
+    return true;
+  }
+}
