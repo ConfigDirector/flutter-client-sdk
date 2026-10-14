@@ -37,6 +37,59 @@ void main() {
     expect(mapped.id, 'user-123');
   });
 
+  test('maps the kind attribute to the context kind', () {
+    final mapped = mapEvaluationContext(
+      EvaluationContext(attributes: {'kind': 'device'}),
+    );
+
+    expect(mapped.kind, 'device');
+  });
+
+  test('maps a number kind to its text', () {
+    final mapped = mapEvaluationContext(
+      EvaluationContext(attributes: {'kind': 42}),
+    );
+
+    expect(mapped.kind, '42');
+  });
+
+  test('maps a boolean kind to its text', () {
+    final mapped = mapEvaluationContext(
+      EvaluationContext(attributes: {'kind': true}),
+    );
+
+    expect(mapped.kind, 'true');
+  });
+
+  test('passes an empty kind on as given', () {
+    final mapped = mapEvaluationContext(
+      EvaluationContext(attributes: {'kind': ''}),
+    );
+
+    expect(mapped.kind, '');
+  });
+
+  test('leaves out the kind without a kind attribute', () {
+    final mapped = mapEvaluationContext(
+      EvaluationContext(targetingKey: 'user-123'),
+    );
+
+    expect(mapped.kind, isNull);
+  });
+
+  test('keeps a kind inside traits as an ordinary trait', () {
+    final mapped = mapEvaluationContext(
+      EvaluationContext(
+        attributes: {
+          'traits': {'kind': 'device'},
+        },
+      ),
+    );
+
+    expect(mapped.kind, isNull);
+    expect(mapped.traits, {'kind': 'device'});
+  });
+
   test('maps the name, traits and anonymous attributes', () {
     final mapped = mapEvaluationContext(
       EvaluationContext(

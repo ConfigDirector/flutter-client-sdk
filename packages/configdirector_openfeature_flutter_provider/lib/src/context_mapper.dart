@@ -7,6 +7,7 @@ ConfigDirectorContext mapEvaluationContext(EvaluationContext context) {
 
   return ConfigDirectorContext(
     id: context.targetingKey ?? context.getValue('id')?.toString(),
+    kind: context.getValue('kind')?.toString(),
     name: context.getValue('name')?.toString(),
     traits: traits is Map<String, Object?> && traits.isNotEmpty
         ? _jsonCompatibleMap(traits)

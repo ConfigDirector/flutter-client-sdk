@@ -5,6 +5,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A top-level `kind` attribute of the evaluation context, beside `targetingKey`, is sent as the
+  ConfigDirector context kind. It is read the way `id` is, so any value is sent as its text: `42`
+  as `"42"` and `true` as `"true"`. Leaving it out means `user`, as before, and a `kind` inside
+  `traits` stays an ordinary trait. Initializing or changing the context with an invalid context
+  kind still succeeds and reports ready or a context change, never an error: the SDK logs an
+  error, ignores the whole context, and flags resolve as if no context was set. Requires version
+  1.6.0 of `configdirector_flutter_client_sdk`, which adds context kinds.
+
 ## [0.1.0-beta.4] - 2026-10-01
 
 ### Changed

@@ -1,4 +1,5 @@
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
+import 'package:configdirector_flutter_client_sdk/testing.dart';
 import 'package:configdirector_openfeature_flutter_provider/src/config_director_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk_experimental.dart';
@@ -55,6 +56,26 @@ void main() {
       const ConfigDirectorContext(id: 'user-123'),
     ]);
   });
+
+  test(
+    'drops an initial context that has an invalid kind and becomes ready',
+    () async {
+      final testClient = createTestClient(
+        logger: ConsoleLogger(level: ConfigDirectorLogLevel.off),
+      );
+      await api.setEvaluationContextAndWait(
+        EvaluationContext(
+          targetingKey: 'device-42',
+          attributes: {'kind': 'Device'},
+        ),
+      );
+
+      await api.setProviderAndWait(providerForClient(testClient.client));
+
+      expect(api.getClient().providerStatus, ProviderStatus.ready);
+      expect(testClient.contextUpdates, [const ConfigDirectorContext()]);
+    },
+  );
 
   test('evaluates every flag type through an OpenFeature client', () async {
     await api.setProviderAndWait(provider);
@@ -146,6 +167,34 @@ void main() {
     expect(contextChanged, hasLength(1));
     expect(api.getClient().providerStatus, ProviderStatus.ready);
   });
+
+  test(
+    'drops a new context that has an invalid kind and reports the context change',
+    () async {
+      final testClient = createTestClient(
+        logger: ConsoleLogger(level: ConfigDirectorLogLevel.off),
+      );
+      await api.setEvaluationContextAndWait(
+        EvaluationContext(targetingKey: 'user-123'),
+      );
+      await api.setProviderAndWait(providerForClient(testClient.client));
+      final contextChanged = record(ProviderEventType.contextChanged);
+
+      await api.setEvaluationContextAndWait(
+        EvaluationContext(
+          targetingKey: 'device-42',
+          attributes: {'kind': 'Device'},
+        ),
+      );
+
+      expect(contextChanged, hasLength(1));
+      expect(api.getClient().providerStatus, ProviderStatus.ready);
+      expect(testClient.contextUpdates, [
+        const ConfigDirectorContext(id: 'user-123'),
+        const ConfigDirectorContext(),
+      ]);
+    },
+  );
 
   test('fails a context change the client does not become ready for', () async {
     await api.setProviderAndWait(provider);

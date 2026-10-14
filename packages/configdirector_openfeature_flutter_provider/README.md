@@ -37,16 +37,17 @@ final darkMode = client.getBooleanValue('dark-mode', false);
 
 ## Evaluation context
 
-The OpenFeature evaluation context is sent to ConfigDirector as the user's context:
+The OpenFeature evaluation context is sent to ConfigDirector as the context:
 
 | OpenFeature                  | ConfigDirector |
 | ---------------------------- | -------------- |
 | `targetingKey`, or else `id` | `id`           |
+| `kind`                       | `kind`         |
 | `name`                       | `name`         |
 | `traits`, a structure        | `traits`       |
 | `anonymous`, a boolean       | `anonymous`    |
 
-Any other attribute is ignored. Put the values your targeting rules depend on inside `traits`. The context handed to an individual evaluation is ignored as well: flags are evaluated against the context most recently set.
+Any other attribute is ignored. Put the values your targeting rules depend on inside `traits`; a `kind` inside `traits` is an ordinary trait. Leaving `kind` out means `user`, and a context with an invalid `kind` is ignored as a whole: the SDK logs an error and flags resolve as if no context was set. The context handed to an individual evaluation is ignored as well: flags are evaluated against the context most recently set.
 
 ```dart
 await OpenFeatureAPI.instance.setEvaluationContextAndWait(
