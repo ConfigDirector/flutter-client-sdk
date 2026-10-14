@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-14
+
 ### Added
 
 - A context can now carry a context kind, such as `device` or `organization`, passed as
