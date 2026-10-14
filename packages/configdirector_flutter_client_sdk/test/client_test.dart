@@ -1409,6 +1409,319 @@ void main() {
     });
   });
 
+  group('invalid context kind', () {
+    const userContext = ConfigDirectorContext(id: 'user-123');
+    const contextWithAnInvalidContextKind = ConfigDirectorContext(
+      id: 'device-42',
+      kind: 'Device',
+      name: 'Kitchen tablet',
+      traits: {'model': 't-1000'},
+    );
+    late List<Object?> givenContexts;
+    late List<StreamController<List<int>>> streams;
+
+    setUp(() {
+      givenContexts = [];
+      streams = [];
+    });
+
+    tearDown(() {
+      for (final stream in streams) {
+        unawaited(stream.close());
+      }
+    });
+
+    String configSetBody() => jsonEncode({'kind': 'full', 'configs': {}});
+
+    void recordGivenContext(http.BaseRequest request) {
+      final payload =
+          jsonDecode((request as http.Request).body) as Map<String, Object?>;
+      givenContexts.add(payload['givenContext']);
+    }
+
+    DefaultConfigDirectorClient createClientOverHttp(
+      ConnectionMode mode,
+      http.Client httpClient,
+    ) => autoDispose(
+      DefaultConfigDirectorClient(
+        'a-client-sdk-key',
+        options: ConfigDirectorClientOptions(
+          logger: logger,
+          connection: ConnectionOptions(
+            mode: mode,
+            timeout: const Duration(seconds: 3),
+          ),
+        ),
+        httpClient: httpClient,
+        telemetryClient: telemetry,
+        lifecycleWatcher: lifecycleWatcher,
+        appInfoResolver: () async => const ConfigDirectorMetaContext(),
+        instanceIdStorage: instanceIdStorage,
+        connectionRetryDelay: (_) => const Duration(milliseconds: 1),
+      ),
+    );
+
+    DefaultConfigDirectorClient createStreamingClient() => createClientOverHttp(
+      ConnectionMode.streaming,
+      MockClient.streaming((request, _) async {
+        recordGivenContext(request);
+        final stream = StreamController<List<int>>()
+          ..add(utf8.encode('data: ${configSetBody()}\n\n'));
+        streams.add(stream);
+        return http.StreamedResponse(
+          stream.stream,
+          200,
+          headers: const {'content-type': 'text/event-stream'},
+        );
+      }),
+    );
+
+    DefaultConfigDirectorClient createPollingClient() => createClientOverHttp(
+      ConnectionMode.polling,
+      MockClient((request) async {
+        recordGivenContext(request);
+        return http.Response(configSetBody(), 200);
+      }),
+    );
+
+    group('over streaming', () {
+      test(
+        'initialize connects with an empty context and adopts none',
+        () async {
+          final client = createStreamingClient();
+          final contextUpdates = <ConfigDirectorContext?>[];
+          client.onContextUpdated.listen(
+            (event) => contextUpdates.add(event.context),
+          );
+
+          await client.initialize(contextWithAnInvalidContextKind);
+          await pumpEventQueue();
+
+          expect(givenContexts, [<String, Object?>{}]);
+          expect(client.isReady, isTrue);
+          expect(client.context, isNull);
+          expect(contextUpdates, [null]);
+          expect(logger.errorMessages, hasLength(1));
+          expect(logger.errorMessages.single, contains("'Device'"));
+        },
+      );
+
+      test('updateContext stops using the previous context and connects with '
+          'an empty context', () async {
+        final client = createStreamingClient();
+        await client.initialize(userContext);
+        final contextUpdates = <ConfigDirectorContext?>[];
+        client.onContextUpdated.listen(
+          (event) => contextUpdates.add(event.context),
+        );
+
+        await client.updateContext(contextWithAnInvalidContextKind);
+        await pumpEventQueue();
+
+        expect(givenContexts, [
+          {'id': 'user-123'},
+          <String, Object?>{},
+        ]);
+        expect(client.isReady, isTrue);
+        expect(client.context, isNull);
+        expect(client.evaluate('dark-mode', false).context, isNull);
+        expect(contextUpdates, [null]);
+        expect(logger.errorMessages, hasLength(1));
+      });
+
+      test('a reconnect counts nothing again', () async {
+        final client = createStreamingClient();
+        await client.initialize(contextWithAnInvalidContextKind);
+
+        await streams.single.close();
+        await Future.doWhile(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+          return givenContexts.length < 2;
+        }).timeout(const Duration(seconds: 5));
+        await pumpEventQueue();
+
+        expect(givenContexts, [<String, Object?>{}, <String, Object?>{}]);
+        expect(telemetry.invalidContextSubmissions, ['Device']);
+        expect(logger.errorMessages, hasLength(1));
+      });
+    });
+
+    group('over polling', () {
+      test(
+        'initialize connects with an empty context and adopts none',
+        () async {
+          final client = createPollingClient();
+          final contextUpdates = <ConfigDirectorContext?>[];
+          client.onContextUpdated.listen(
+            (event) => contextUpdates.add(event.context),
+          );
+
+          await client.initialize(contextWithAnInvalidContextKind);
+          await pumpEventQueue();
+
+          expect(givenContexts, [<String, Object?>{}]);
+          expect(client.isReady, isTrue);
+          expect(client.context, isNull);
+          expect(contextUpdates, [null]);
+          expect(logger.errorMessages, hasLength(1));
+          expect(logger.errorMessages.single, contains("'Device'"));
+        },
+      );
+
+      test('updateContext stops using the previous context and connects with '
+          'an empty context', () async {
+        final client = createPollingClient();
+        await client.initialize(userContext);
+        final contextUpdates = <ConfigDirectorContext?>[];
+        client.onContextUpdated.listen(
+          (event) => contextUpdates.add(event.context),
+        );
+
+        await client.updateContext(contextWithAnInvalidContextKind);
+        await pumpEventQueue();
+
+        expect(givenContexts, [
+          {'id': 'user-123'},
+          <String, Object?>{},
+        ]);
+        expect(client.isReady, isTrue);
+        expect(client.context, isNull);
+        expect(client.evaluate('dark-mode', false).context, isNull);
+        expect(contextUpdates, [null]);
+        expect(logger.errorMessages, hasLength(1));
+      });
+
+      test('a poll counts nothing again', () {
+        fakeAsync((async) {
+          final client = createPollingClient();
+
+          client.initialize(contextWithAnInvalidContextKind);
+          async.elapse(const Duration(seconds: 60));
+
+          expect(givenContexts, [<String, Object?>{}, <String, Object?>{}]);
+          expect(telemetry.invalidContextSubmissions, ['Device']);
+          expect(logger.errorMessages, hasLength(1));
+        });
+      });
+    });
+
+    test(
+      'logs every initialize and updateContext with an invalid context kind',
+      () async {
+        final client = autoDispose(createClient());
+
+        await client.initialize(contextWithAnInvalidContextKind);
+        await client.updateContext(contextWithAnInvalidContextKind);
+        await client.updateContext(contextWithAnInvalidContextKind);
+
+        expect(logger.errorMessages, hasLength(3));
+      },
+    );
+
+    test(
+      'logs the first 128 characters of a long invalid context kind',
+      () async {
+        final client = autoDispose(createClient());
+
+        await client.initialize(
+          ConfigDirectorContext(id: 'device-42', kind: 'D' * 200),
+        );
+
+        expect(logger.errorMessages.single, contains('D' * 128));
+        expect(logger.errorMessages.single, isNot(contains('D' * 129)));
+      },
+    );
+
+    test('resuming the network reconnects with no context', () async {
+      final client = autoDispose(createClient());
+      await client.initialize(userContext);
+      await client.updateContext(contextWithAnInvalidContextKind);
+
+      client.pauseNetwork();
+      await client.resumeNetwork();
+
+      expect(transport.connectCalls.map((call) => call.context), [
+        userContext,
+        const ConfigDirectorContext(),
+        const ConfigDirectorContext(),
+      ]);
+      expect(client.context, isNull);
+    });
+
+    test(
+      'keeps the previous context when the server rejects the connection',
+      () async {
+        final client = autoDispose(createClient());
+        await client.initialize(userContext);
+        transport.connectOutcome = ConnectOutcome.failedFatally;
+
+        await client.updateContext(contextWithAnInvalidContextKind);
+
+        expect(
+          transport.connectCalls.last.context,
+          const ConfigDirectorContext(),
+        );
+        expect(client.context, userContext);
+      },
+    );
+
+    test(
+      'counts one invalid context submission per initialize or updateContext',
+      () async {
+        final client = autoDispose(createClient());
+
+        await client.initialize(contextWithAnInvalidContextKind);
+        await client.updateContext(
+          const ConfigDirectorContext(id: 'tenant-7', kind: 'Tenant'),
+        );
+
+        expect(telemetry.invalidContextSubmissions, ['Device', 'Tenant']);
+      },
+    );
+
+    test(
+      'counts the first 128 characters of a long invalid context kind',
+      () async {
+        final client = autoDispose(createClient());
+
+        await client.initialize(
+          ConfigDirectorContext(id: 'device-42', kind: 'D' * 200),
+        );
+
+        expect(telemetry.invalidContextSubmissions, ['D' * 128]);
+      },
+    );
+
+    test('counts nothing again when configs are read', () async {
+      final client = autoDispose(createClient());
+      await client.initialize(contextWithAnInvalidContextKind);
+
+      client
+        ..getValue('dark-mode', false)
+        ..evaluate('dark-mode', false);
+
+      expect(telemetry.invalidContextSubmissions, ['Device']);
+    });
+
+    test('counts nothing again when the network resumes', () async {
+      final client = autoDispose(createClient());
+      await client.initialize(contextWithAnInvalidContextKind);
+
+      client.pauseNetwork();
+      await client.resumeNetwork();
+
+      expect(telemetry.invalidContextSubmissions, ['Device']);
+    });
+
+    test('never hands the ignored context to telemetry', () async {
+      final client = autoDispose(createClient());
+
+      await client.initialize(contextWithAnInvalidContextKind);
+
+      expect(telemetry.contextUpdates, [null]);
+    });
+  });
+
   group('network', () {
     test('pauseNetwork closes the transport and clears readiness', () async {
       final client = autoDispose(createClient());

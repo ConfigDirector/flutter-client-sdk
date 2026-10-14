@@ -15,15 +15,21 @@ import 'telemetry_events.dart';
 final class EventReportRequest {
   const EventReportRequest({
     required this.snapshot,
+    required this.invalidContextSubmissions,
     required this.metaContext,
     this.context,
   });
 
   final EventQueueSnapshot<EvaluatedConfigEvent> snapshot;
 
+  final List<AggregatedEvent<InvalidContextSubmission>>
+  invalidContextSubmissions;
+
   final SdkMetaContext metaContext;
 
   final ConfigDirectorContext? context;
+
+  bool get isEmpty => snapshot.isEmpty && invalidContextSubmissions.isEmpty;
 }
 
 @immutable
@@ -73,6 +79,9 @@ final class HttpEventReporter implements EventReporter {
     if (!_executeRequests) {
       return const ReporterResponse.failed(fatalError: true);
     }
+    if (request.isEmpty) {
+      return const ReporterResponse.succeeded();
+    }
 
     final events = [
       for (final event in request.snapshot.events) event.compacted(),
@@ -86,10 +95,6 @@ final class HttpEventReporter implements EventReporter {
       ),
     );
 
-    if (aggregated.isEmpty && request.snapshot.droppedCount == 0) {
-      return const ReporterResponse.succeeded();
-    }
-
     final response = await _send(
       jsonEncode({
         'clientSdkKey': _sdkKey,
@@ -99,6 +104,10 @@ final class HttpEventReporter implements EventReporter {
         'aggregatedEvents': {
           'evaluatedConfig': [
             for (final event in aggregated) event.toJson((e) => e.toJson()),
+          ],
+          'invalidContext': [
+            for (final entry in request.invalidContextSubmissions)
+              entry.toJson((submission) => submission.toJson()),
           ],
         },
         'droppedEvents': {'evaluatedConfig': request.snapshot.droppedCount},

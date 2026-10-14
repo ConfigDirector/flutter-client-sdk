@@ -148,11 +148,13 @@ final class ConfigSet {
 }
 
 /// The user's context, sent to ConfigDirector and used to evaluate targeting
-/// rules.
+/// rules. A context can also stand for another kind of entity, such as a
+/// device or an organization, through its [kind].
 @immutable
 final class ConfigDirectorContext {
   const ConfigDirectorContext({
     this.id,
+    this.kind,
     this.name,
     this.traits,
     this.anonymous,
@@ -166,6 +168,16 @@ final class ConfigDirectorContext {
   /// segment users in percentage rollouts, so changing it can move a user into
   /// a different percentile.
   final String? id;
+
+  /// The context kind, such as `user`, `device` or `organization`, exactly as
+  /// it was given, or `null` when none was given, which means `user`.
+  ///
+  /// A context kind has 1 to 64 characters, using only lowercase ASCII
+  /// letters, digits, `-` and `_`, and is never trimmed or changed. A context
+  /// with any other context kind is ignored as a whole when it is passed to
+  /// `initialize` or `updateContext`: the client logs an error and evaluates
+  /// configs as if no context was given.
+  final String? kind;
 
   /// The user's display name. It is shown in the ConfigDirector dashboard and
   /// may be used by targeting rules.
@@ -190,6 +202,7 @@ final class ConfigDirectorContext {
   /// unset are omitted rather than sent as `null`.
   Map<String, Object?> toJson() => {
     if (id != null) 'id': id,
+    if (kind != null) 'kind': kind,
     if (name != null) 'name': name,
     if (traits != null) 'traits': traits,
     if (anonymous != null) 'anonymous': anonymous,
@@ -200,6 +213,7 @@ final class ConfigDirectorContext {
       identical(this, other) ||
       (other is ConfigDirectorContext &&
           other.id == id &&
+          other.kind == kind &&
           other.name == name &&
           other.anonymous == anonymous &&
           const DeepCollectionEquality().equals(other.traits, traits));
@@ -207,6 +221,7 @@ final class ConfigDirectorContext {
   @override
   int get hashCode => Object.hash(
     id,
+    kind,
     name,
     anonymous,
     const DeepCollectionEquality().hash(traits),
@@ -214,7 +229,8 @@ final class ConfigDirectorContext {
 
   @override
   String toString() =>
-      'ConfigDirectorContext(id: $id, name: $name, traits: $traits, anonymous: $anonymous)';
+      'ConfigDirectorContext(id: $id, kind: $kind, name: $name, traits: $traits, '
+      'anonymous: $anonymous)';
 }
 
 /// Metadata about your application. Including these values lets you write

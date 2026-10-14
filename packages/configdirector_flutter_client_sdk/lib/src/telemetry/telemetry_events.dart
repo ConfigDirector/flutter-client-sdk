@@ -134,6 +134,23 @@ final class EvaluatedConfigEvent {
       'usedDefault: $usedDefault, reason: ${evaluationReason.wireName})';
 }
 
+const String _invalidContextKindReason = 'invalid-context-kind';
+
+@immutable
+final class InvalidContextSubmission {
+  const InvalidContextSubmission.sampled(String this.contextKindSample);
+
+  const InvalidContextSubmission.beyondContextKindSampleLimit()
+    : contextKindSample = null;
+
+  final String? contextKindSample;
+
+  Map<String, Object?> toJson() => {
+    'reason': _invalidContextKindReason,
+    if (contextKindSample != null) 'kindSample': contextKindSample,
+  };
+}
+
 /// The name reported for the type a caller asked a config to be returned as.
 ///
 /// Dispatches on `T` rather than on the runtime type of [defaultValue] because

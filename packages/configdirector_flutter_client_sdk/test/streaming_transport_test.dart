@@ -104,6 +104,23 @@ void main() {
     });
   });
 
+  test('sends the context kind in the given context', () async {
+    final transport = StreamingTransport(optionsWith(streamingClient()));
+    addTearDown(transport.dispose);
+
+    await transport.connect(
+      const ConfigDirectorContext(id: 'device-42', kind: 'device'),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
+
+    final request = requests.single as http.Request;
+    expect(jsonDecode(request.body)['givenContext'], {
+      'id': 'device-42',
+      'kind': 'device',
+    });
+  });
+
   test(
     'marks the instance ID ephemeral in the payload when it is not backed by '
     'storage',

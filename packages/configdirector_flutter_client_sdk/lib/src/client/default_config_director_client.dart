@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../client_session.dart';
 import '../constants.dart' as constants;
+import '../context_admission.dart';
 import '../errors.dart';
 import '../lifecycle.dart';
 import '../logger.dart';
@@ -201,12 +202,15 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   @override
   Future<void> initialize([ConfigDirectorContext? context]) {
     _initializing = true;
-    return _connect(context, ClientConnectAction.initialization);
+    const action = ClientConnectAction.initialization;
+    return _connect(_contextToConnectWith(context, action), action);
   }
 
   @override
-  Future<void> updateContext(ConfigDirectorContext context) =>
-      _connect(context, ClientConnectAction.contextUpdate);
+  Future<void> updateContext(ConfigDirectorContext context) {
+    const action = ClientConnectAction.contextUpdate;
+    return _connect(_contextToConnectWith(context, action), action);
+  }
 
   @override
   T getValue<T extends Object>(String configKey, T defaultValue) =>
@@ -314,6 +318,26 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     unawaited(_configsUpdated.close());
     unawaited(_contextUpdated.close());
     unawaited(_configEvaluated.close());
+  }
+
+  ConfigDirectorContext? _contextToConnectWith(
+    ConfigDirectorContext? suppliedContext,
+    ClientConnectAction action,
+  ) {
+    switch (admissionOf(suppliedContext)) {
+      case ContextAdmitted(:final context):
+        return context;
+      case ContextIgnoredForAnInvalidContextKind(:final contextKindSample):
+        _logger.error(
+          '[ConfigDirectorClient] Ignored the context supplied for '
+          "${action.description} because its context kind '$contextKindSample' "
+          'is invalid, so configs are evaluated as if no context was supplied. '
+          'A context kind has 1 to 64 characters: lowercase ASCII letters, '
+          "digits, '-' and '_'.",
+        );
+        _telemetry.recordInvalidContextSubmission(contextKindSample);
+        return null;
+    }
   }
 
   Future<void> _connect(

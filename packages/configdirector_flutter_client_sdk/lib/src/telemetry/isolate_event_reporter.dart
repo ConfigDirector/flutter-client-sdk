@@ -42,7 +42,7 @@ final class IsolateEventReporter implements EventReporter {
     if (_closed) {
       return const ReporterResponse.failed();
     }
-    if (request.snapshot.isEmpty) {
+    if (request.isEmpty) {
       return const ReporterResponse.succeeded();
     }
 

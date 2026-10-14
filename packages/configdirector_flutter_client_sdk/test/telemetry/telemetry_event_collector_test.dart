@@ -53,6 +53,11 @@ void main() {
   List<EvaluatedConfigEvent> reportedEvents(int index) =>
       reporter.requests[index].snapshot.events;
 
+  List<(String?, int)> reportedInvalidContextSubmissions(int index) => [
+    for (final entry in reporter.requests[index].invalidContextSubmissions)
+      (entry.event.contextKindSample, entry.count),
+  ];
+
   test('reports what it collected once the first flush comes due', () {
     fakeAsync((async) {
       createCollector().evaluatedConfig(evaluation());
@@ -178,6 +183,109 @@ void main() {
       expect(reporter.requests.map((r) => r.context?.id), ['a', 'b']);
       expect(reportedEvents(0), [evaluation()]);
       expect(reportedEvents(1), [evaluation('greeting')]);
+    });
+  });
+
+  test(
+    'reports invalid context submissions even when nothing was evaluated',
+    () {
+      fakeAsync((async) {
+        final collector = createCollector();
+
+        collector
+          ..recordInvalidContextSubmission('Device')
+          ..recordInvalidContextSubmission('Tenant')
+          ..recordInvalidContextSubmission('Device');
+        async.elapse(_initialFlushDelay);
+
+        expect(reportedInvalidContextSubmissions(0), [
+          ('Device', 2),
+          ('Tenant', 1),
+        ]);
+        expect(reportedEvents(0), isEmpty);
+      });
+    },
+  );
+
+  test(
+    'keeps 20 context kind samples and counts the rest without a sample',
+    () {
+      fakeAsync((async) {
+        final collector = createCollector();
+
+        for (var number = 1; number <= 22; number++) {
+          collector.recordInvalidContextSubmission('kind-$number');
+        }
+        collector.recordInvalidContextSubmission('kind-1');
+        async.elapse(_initialFlushDelay);
+
+        final reported = reportedInvalidContextSubmissions(0);
+        expect(reported, hasLength(21));
+        expect(reported.first, ('kind-1', 2));
+        expect(reported[19], ('kind-20', 1));
+        expect(reported.last, (null, 2));
+      });
+    },
+  );
+
+  test('samples context kinds afresh after each flush', () {
+    fakeAsync((async) {
+      final collector = createCollector();
+
+      for (var number = 1; number <= 20; number++) {
+        collector.recordInvalidContextSubmission('kind-$number');
+      }
+      async.elapse(_initialFlushDelay);
+      collector.recordInvalidContextSubmission('kind-21');
+      async.elapse(_flushInterval);
+
+      expect(reportedInvalidContextSubmissions(1), [('kind-21', 1)]);
+    });
+  });
+
+  test('collects no invalid context submissions after a fatal error', () {
+    fakeAsync((async) {
+      final collector = createCollector()..evaluatedConfig(evaluation());
+      reporter.response = const ReporterResponse.failed(fatalError: true);
+      async.elapse(_initialFlushDelay);
+
+      collector.recordInvalidContextSubmission('Device');
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      expect(reporter.requests, hasLength(1));
+    });
+  });
+
+  test('discards invalid context submissions recorded while a report that '
+      'ends in a fatal error was in flight', () {
+    fakeAsync((async) {
+      final collector = createCollector()..evaluatedConfig(evaluation());
+      reporter
+        ..response = const ReporterResponse.failed(fatalError: true)
+        ..gate = Completer<void>();
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      collector.recordInvalidContextSubmission('Device');
+      reporter.gate!.complete();
+      async.flushMicrotasks();
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      expect(reporter.requests, hasLength(1));
+    });
+  });
+
+  test('reports the invalid context submissions left when it closes', () {
+    fakeAsync((async) {
+      final collector = createCollector()
+        ..recordInvalidContextSubmission('Device');
+
+      unawaited(collector.close());
+      async.flushMicrotasks();
+
+      expect(reportedInvalidContextSubmissions(0), [('Device', 1)]);
     });
   });
 

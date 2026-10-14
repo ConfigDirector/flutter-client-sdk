@@ -126,6 +126,43 @@ void main() {
     });
   });
 
+  test('reports a context ignored for its invalid context kind without the '
+      'context', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+    );
+
+    final initialization = client.initialize(
+      const ConfigDirectorContext(
+        id: 'device-42',
+        kind: 'Device',
+        name: 'Kitchen tablet',
+        traits: {'model': 't-1000'},
+      ),
+    );
+    transport.emitConfigSet(configSet(configs: const {}));
+    await initialization;
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    final report = await reported.future.timeout(const Duration(seconds: 10));
+
+    expect(
+      (report['aggregatedEvents']! as Map<String, Object?>)['invalidContext'],
+      [
+        {
+          'startTime': isA<String>(),
+          'endTime': isA<String>(),
+          'count': 1,
+          'event': {'reason': 'invalid-context-kind', 'kindSample': 'Device'},
+        },
+      ],
+    );
+    expect(report, isNot(contains('context')));
+    expect(jsonEncode(report), isNot(contains('device-42')));
+    expect(jsonEncode(report), isNot(contains('Kitchen tablet')));
+    expect(jsonEncode(report), isNot(contains('t-1000')));
+  });
+
   test('reports the app name and version read from the platform', () async {
     final client = createClient(
       appInfoResolver: () async => const ConfigDirectorMetaContext(

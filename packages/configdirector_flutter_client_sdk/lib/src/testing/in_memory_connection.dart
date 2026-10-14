@@ -310,6 +310,9 @@ final class _NoTelemetryClient implements TelemetryClient {
   void evaluatedConfig(EvaluatedConfigEvent event) {}
 
   @override
+  void recordInvalidContextSubmission(String contextKindSample) {}
+
+  @override
   Future<void> updateContext(ConfigDirectorContext? context) async {}
 
   @override

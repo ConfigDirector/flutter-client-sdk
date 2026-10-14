@@ -97,12 +97,17 @@ final class FakeLifecycleWatcher implements AppLifecycleWatcher {
 
 final class FakeTelemetryClient implements TelemetryClient {
   final List<EvaluatedConfigEvent> events = [];
+  final List<String> invalidContextSubmissions = [];
   final List<ConfigDirectorContext?> contextUpdates = [];
   int flushCount = 0;
   int closeCount = 0;
 
   @override
   void evaluatedConfig(EvaluatedConfigEvent event) => events.add(event);
+
+  @override
+  void recordInvalidContextSubmission(String contextKindSample) =>
+      invalidContextSubmissions.add(contextKindSample);
 
   @override
   Future<void> updateContext(ConfigDirectorContext? context) async =>

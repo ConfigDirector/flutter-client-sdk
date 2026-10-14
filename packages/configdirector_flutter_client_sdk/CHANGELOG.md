@@ -5,6 +5,25 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A context can now carry a context kind, such as `device` or `organization`, passed as
+  `ConfigDirectorContext(id: '42', kind: 'device')` and read back as `ConfigDirectorContext.kind`.
+  Leaving it out means `user`, as before, and `kind` then reads `null`. A context kind has 1 to 64
+  characters, using only lowercase ASCII letters, digits, `-` and `_`, and is sent exactly as
+  given. `==`, `hashCode` and `toString` include it, so a context without a context kind and one
+  with context kind `user` are not equal, though both are evaluated as `user`. Existing call sites
+  compile unchanged.
+- `initialize` and `updateContext` ignore a context whose context kind is invalid. They log an
+  error each time, stop using the previous context, and evaluate configs as if no context was
+  given, so `context`, `ContextUpdatedEvent.context` and `ConfigEvaluation.context` are `null`
+  afterwards and `resumeNetwork` reconnects without a context. Creating the context never throws
+  because of its context kind. Telemetry counts each ignored context with its context kind, never
+  its id, name or traits.
+- The test client (`testing.dart`) records an empty context in `contextUpdates` for an
+  `initialize` or `updateContext` whose context has an invalid context kind, since the client
+  connects without it.
+
 ### Changed
 
 - The client now keeps its instance ID in the app's own `shared_preferences` and reuses it for six

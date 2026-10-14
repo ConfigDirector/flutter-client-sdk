@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:configdirector_flutter_client_sdk/src/telemetry/event_aggregator.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_queue.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_events.dart';
@@ -42,6 +43,8 @@ EventReportRequest requestOf(
   ),
   ConfigDirectorContext? context,
   int droppedCount = 0,
+  List<AggregatedEvent<InvalidContextSubmission>> invalidContextSubmissions =
+      const [],
 }) => EventReportRequest(
   metaContext: metaContext,
   context: context,
@@ -51,6 +54,17 @@ EventReportRequest requestOf(
     events: events,
     droppedCount: droppedCount,
   ),
+  invalidContextSubmissions: invalidContextSubmissions,
+);
+
+AggregatedEvent<InvalidContextSubmission> aggregatedInvalidContextSubmission(
+  InvalidContextSubmission submission,
+  int count,
+) => AggregatedEvent(
+  startTime: DateTime.utc(2026),
+  endTime: DateTime.utc(2026, 1, 1, 0, 0, 30),
+  count: count,
+  event: submission,
 );
 
 void main() {
@@ -157,11 +171,88 @@ void main() {
               },
             },
           ],
+          'invalidContext': <Object?>[],
         },
         'droppedEvents': {'evaluatedConfig': 3},
       });
     },
   );
+
+  test(
+    'reports invalid context submissions by their context kind sample',
+    () async {
+      final reporter = reporterWith((_) => http.Response('', 202));
+
+      await reporter.report(
+        requestOf(
+          [evaluation()],
+          invalidContextSubmissions: [
+            aggregatedInvalidContextSubmission(
+              const InvalidContextSubmission.sampled('Device'),
+              3,
+            ),
+            aggregatedInvalidContextSubmission(
+              const InvalidContextSubmission.beyondContextKindSampleLimit(),
+              2,
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        (bodyOf(requests.single)['aggregatedEvents']
+            as Map<String, Object?>)['invalidContext'],
+        [
+          {
+            'startTime': '2026-01-01T00:00:00.000Z',
+            'endTime': '2026-01-01T00:00:30.000Z',
+            'count': 3,
+            'event': {'reason': 'invalid-context-kind', 'kindSample': 'Device'},
+          },
+          {
+            'startTime': '2026-01-01T00:00:00.000Z',
+            'endTime': '2026-01-01T00:00:30.000Z',
+            'count': 2,
+            'event': {'reason': 'invalid-context-kind'},
+          },
+        ],
+      );
+    },
+  );
+
+  test('sends a report holding only invalid context submissions', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    final response = await reporter.report(
+      requestOf(
+        [],
+        invalidContextSubmissions: [
+          aggregatedInvalidContextSubmission(
+            const InvalidContextSubmission.sampled('Device'),
+            1,
+          ),
+        ],
+      ),
+    );
+
+    expect(response.success, isTrue);
+    expect(requests, hasLength(1));
+  });
+
+  test('reports the context kind in the context', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    await reporter.report(
+      requestOf([
+        evaluation(),
+      ], context: const ConfigDirectorContext(id: 'device-42', kind: 'device')),
+    );
+
+    expect(bodyOf(requests.single)['context'], {
+      'id': 'device-42',
+      'kind': 'device',
+    });
+  });
 
   test('reports the app name and version in the meta context', () async {
     final reporter = reporterWith((_) => http.Response('', 202));

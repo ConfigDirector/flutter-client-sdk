@@ -626,6 +626,40 @@ void main() {
       expect(testClient.contextUpdates, [const ConfigDirectorContext()]);
     });
 
+    test(
+      'initialize with an invalid context kind records an empty context',
+      () async {
+        final testClient = create(logger: logger);
+
+        await testClient.client.initialize(
+          const ConfigDirectorContext(id: 'device-42', kind: 'Device'),
+        );
+
+        expect(testClient.contextUpdates, [const ConfigDirectorContext()]);
+        expect(testClient.client.context, isNull);
+        expect(logger.errorMessages, hasLength(1));
+      },
+    );
+
+    test(
+      'updateContext with an invalid context kind records an empty context',
+      () async {
+        final testClient = create(logger: logger);
+        await testClient.client.initialize(_userA);
+
+        await testClient.client.updateContext(
+          const ConfigDirectorContext(id: 'device-42', kind: 'Device'),
+        );
+
+        expect(testClient.contextUpdates, [
+          _userA,
+          const ConfigDirectorContext(),
+        ]);
+        expect(testClient.client.context, isNull);
+        expect(logger.errorMessages, hasLength(1));
+      },
+    );
+
     test('S26 a held updateContext stays pending until completed', () async {
       final testClient = create(values: {'flag': true});
       final client = testClient.client;

@@ -70,8 +70,9 @@ final class TestClient {
   ConfigDirectorClient get client => _connection.client;
 
   /// The context of every `initialize` and `updateContext` call, in call
-  /// order. `initialize` without a context records an empty context.
-  /// `resumeNetwork` is not recorded.
+  /// order. `initialize` without a context records an empty context, and so
+  /// does a call whose context has an invalid context kind, since the client
+  /// connects without it. `resumeNetwork` is not recorded.
   List<ConfigDirectorContext> get contextUpdates => _connection.contextUpdates;
 
   /// Stores [value] under [key] and, once the client is connected, delivers an

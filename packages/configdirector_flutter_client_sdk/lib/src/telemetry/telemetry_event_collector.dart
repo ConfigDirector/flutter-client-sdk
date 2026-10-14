@@ -4,6 +4,7 @@ import '../logger.dart';
 import '../types.dart';
 import 'event_queue.dart';
 import 'event_reporter.dart';
+import 'invalid_context_submissions.dart';
 import 'telemetry_client.dart';
 import 'telemetry_events.dart';
 
@@ -35,6 +36,8 @@ final class TelemetryEventCollector implements TelemetryClient {
   final SdkMetaContext Function() _currentMetaContext;
   final ConfigDirectorLogger _logger;
   final EventQueue<EvaluatedConfigEvent> _queue;
+  final InvalidContextSubmissions _invalidContextSubmissions =
+      InvalidContextSubmissions();
 
   ConfigDirectorContext? _context;
   Timer? _flushTimer;
@@ -48,6 +51,14 @@ final class TelemetryEventCollector implements TelemetryClient {
       return;
     }
     _queue.push(event);
+  }
+
+  @override
+  void recordInvalidContextSubmission(String contextKindSample) {
+    if (!_collecting) {
+      return;
+    }
+    _invalidContextSubmissions.record(contextKindSample);
   }
 
   @override
@@ -87,6 +98,7 @@ final class TelemetryEventCollector implements TelemetryClient {
     await _flush();
     await _reporter.close();
     _queue.clear();
+    _invalidContextSubmissions.clear();
   }
 
   void _onFlushTimer() => unawaited(_flushAndScheduleNext());
@@ -102,15 +114,16 @@ final class TelemetryEventCollector implements TelemetryClient {
   }
 
   Future<void> _flush() {
-    if (_queue.isEmpty) {
-      return _flushChain;
-    }
-
     final request = EventReportRequest(
       snapshot: _queue.takeSnapshot(),
+      invalidContextSubmissions: _invalidContextSubmissions.takeAggregated(),
       metaContext: _currentMetaContext(),
       context: _context,
     );
+    if (request.isEmpty) {
+      return _flushChain;
+    }
+
     final flush = _flushChain.then((_) => _send(request));
     _flushChain = flush.catchError((Object _) {});
     return flush;
@@ -139,6 +152,7 @@ final class TelemetryEventCollector implements TelemetryClient {
     _flushTimer?.cancel();
     _flushTimer = null;
     _queue.clear();
+    _invalidContextSubmissions.clear();
     unawaited(_reporter.close());
     _logger.warn(
       '[TelemetryEventCollector] Received a fatal error while reporting '

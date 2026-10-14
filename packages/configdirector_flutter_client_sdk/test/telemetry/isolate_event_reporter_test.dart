@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:configdirector_flutter_client_sdk/src/telemetry/event_aggregator.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_queue.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/isolate_event_reporter.dart';
@@ -21,9 +22,12 @@ EventReportRequest requestOf({
     sdkVersion: '1.2.3',
   ),
   ConfigDirectorContext? context,
+  List<AggregatedEvent<InvalidContextSubmission>> invalidContextSubmissions =
+      const [],
 }) => EventReportRequest(
   metaContext: metaContext,
   context: context,
+  invalidContextSubmissions: invalidContextSubmissions,
   snapshot: EventQueueSnapshot(
     startTime: DateTime.utc(2026),
     endTime: DateTime.utc(2026, 1, 1, 0, 0, 30),
@@ -148,6 +152,40 @@ void main() {
       );
     },
   );
+
+  test('sends a report holding only invalid context submissions from the '
+      'background isolate', () async {
+    final reporter = createReporter();
+    addTearDown(reporter.close);
+
+    final response = await reporter.report(
+      requestOf(
+        keys: const [],
+        invalidContextSubmissions: [
+          AggregatedEvent(
+            startTime: DateTime.utc(2026),
+            endTime: DateTime.utc(2026, 1, 1, 0, 0, 30),
+            count: 2,
+            event: const InvalidContextSubmission.sampled('Device'),
+          ),
+        ],
+      ),
+    );
+
+    expect(response.success, isTrue);
+    expect(
+      (received.single['aggregatedEvents']
+          as Map<String, Object?>)['invalidContext'],
+      [
+        {
+          'startTime': '2026-01-01T00:00:00.000Z',
+          'endTime': '2026-01-01T00:00:30.000Z',
+          'count': 2,
+          'event': {'reason': 'invalid-context-kind', 'kindSample': 'Device'},
+        },
+      ],
+    );
+  });
 
   test('does not start the isolate when there is nothing to report', () async {
     final reporter = createReporter();

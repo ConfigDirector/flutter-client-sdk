@@ -39,13 +39,22 @@ abstract interface class ConfigDirectorClient {
   /// the client stops trying and logs an error.
   ///
   /// [context] is the current user's context, used to evaluate targeting rules.
+  /// A [context] whose [ConfigDirectorContext.kind] is invalid is ignored as a
+  /// whole: the client logs an error and evaluates configs as if no context
+  /// was given, so the `context` getter reads `null` afterwards.
   Future<void> initialize([ConfigDirectorContext? context]);
 
   /// Updates the user's context and re-evaluates every config against it.
+  ///
+  /// A [context] whose [ConfigDirectorContext.kind] is invalid is ignored as a
+  /// whole: the client logs an error, stops using the previous context, and
+  /// evaluates configs as if no context was given, so the `context` getter
+  /// reads `null` afterwards.
   Future<void> updateContext(ConfigDirectorContext context);
 
   /// The context the client is currently evaluating configs against, or `null`
-  /// when there is none.
+  /// when there is none, as after a context with an invalid
+  /// [ConfigDirectorContext.kind] was ignored.
   ///
   /// This does not change the moment [updateContext] is called: configs are
   /// evaluated against the previous context until the underlying connection
@@ -139,7 +148,8 @@ abstract interface class ConfigDirectorClient {
   void pauseNetwork();
 
   /// Resumes a connection paused by [pauseNetwork], reusing the last context
-  /// given to [initialize] or [updateContext].
+  /// given to [initialize] or [updateContext], or no context when that one was
+  /// ignored for an invalid [ConfigDirectorContext.kind].
   Future<void> resumeNetwork();
 
   /// Disposes of the client: closes the connection, every watch stream, and

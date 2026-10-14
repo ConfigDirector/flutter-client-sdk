@@ -9,6 +9,8 @@ abstract interface class TelemetryClient {
   /// Records that a config was evaluated.
   void evaluatedConfig(EvaluatedConfigEvent event);
 
+  void recordInvalidContextSubmission(String contextKindSample);
+
   /// Reports the events collected so far against the previous context, and
   /// attributes the ones collected from now on to [context].
   Future<void> updateContext(ConfigDirectorContext? context);
