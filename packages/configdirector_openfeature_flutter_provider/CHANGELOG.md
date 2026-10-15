@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.5] - 2026-10-15
+
 ### Added
 
 - A top-level `kind` attribute of the evaluation context, beside `targetingKey`, is sent as the
