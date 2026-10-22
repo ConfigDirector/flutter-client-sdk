@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
-
 import '../client/client_events.dart';
 import '../client/client_options.dart';
 import '../client/config_director_client.dart';
@@ -9,11 +7,10 @@ import '../client/default_config_director_client.dart';
 import '../client_session.dart';
 import '../lifecycle.dart';
 import '../logger.dart';
-import '../telemetry/telemetry_client.dart';
-import '../telemetry/telemetry_events.dart';
+import '../native_value_encoder.dart';
+import '../telemetry/discarding_telemetry_client.dart';
 import '../transport/transport.dart';
 import '../types.dart';
-import 'test_value_encoder.dart';
 
 const String _placeholderSdkKey = 'test-client';
 const String _environmentId = 'test-environment';
@@ -28,7 +25,7 @@ final class InMemoryConnection {
     Map<String, Object?> values = const {},
     Duration? timeout,
     ConfigDirectorLogger? logger,
-  }) : _values = _encodeAll(values) {
+  }) : _values = encodeNativeValues(values) {
     _client = DefaultConfigDirectorClient(
       _placeholderSdkKey,
       options: ConfigDirectorClientOptions(
@@ -42,9 +39,9 @@ final class InMemoryConnection {
         _logger = options.logger;
         return _InMemoryTransport(this);
       },
-      lifecycleWatcher: const _NoLifecycleWatcher(),
+      lifecycleWatcher: const NoLifecycleWatcher(),
       appInfoResolver: () async => const ConfigDirectorMetaContext(),
-      telemetryClient: const _NoTelemetryClient(),
+      telemetryClient: const DiscardingTelemetryClient(),
       clientSession: ClientSession.provisional(),
     );
   }
@@ -68,7 +65,7 @@ final class InMemoryConnection {
       List.unmodifiable(_contextUpdates);
 
   void setValue(String key, Object? value) {
-    final configState = encodeTestValue(key, value);
+    final configState = encodeNativeValue(key, value);
     _values[key] = configState;
     _deliverIfConnected(_configSet(ConfigSetKind.delta, {key: configState}));
   }
@@ -79,7 +76,7 @@ final class InMemoryConnection {
   }
 
   void replaceValues(Map<String, Object?> values) {
-    _values = _encodeAll(values);
+    _values = encodeNativeValues(values);
     _initialization.disarm();
     _contextUpdate.disarm();
     _deliverIfConnected(_fullUpdate());
@@ -187,11 +184,6 @@ final class InMemoryConnection {
     configs: Map.unmodifiable(configs),
     kind: kind,
   );
-
-  static Map<String, ConfigState> _encodeAll(Map<String, Object?> values) => {
-    for (final entry in values.entries)
-      entry.key: encodeTestValue(entry.key, entry.value),
-  };
 }
 
 enum _Armed { nothing, hold, failure }
@@ -291,33 +283,4 @@ final class _InMemoryTransport implements Transport {
 
   @override
   void dispose() => _connection._dispose();
-}
-
-final class _NoLifecycleWatcher implements AppLifecycleWatcher {
-  const _NoLifecycleWatcher();
-
-  @override
-  void start(void Function(AppLifecycleState state) onStateChanged) {}
-
-  @override
-  void stop() {}
-}
-
-final class _NoTelemetryClient implements TelemetryClient {
-  const _NoTelemetryClient();
-
-  @override
-  void evaluatedConfig(EvaluatedConfigEvent event) {}
-
-  @override
-  void recordInvalidContextSubmission(String contextKindSample) {}
-
-  @override
-  Future<void> updateContext(ConfigDirectorContext? context) async {}
-
-  @override
-  Future<void> flush() async {}
-
-  @override
-  Future<void> close() async {}
 }

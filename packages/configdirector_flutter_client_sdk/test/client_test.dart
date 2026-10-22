@@ -417,6 +417,16 @@ void main() {
       );
     });
 
+    test('rejects a missing SDK key', () {
+      expect(
+        () => DefaultConfigDirectorClient(
+          null,
+          transportFactory: (_) => transport,
+        ),
+        throwsA(isA<ConfigDirectorValidationException>()),
+      );
+    });
+
     test('rejects a relative base URL', () {
       expect(
         () => DefaultConfigDirectorClient(
@@ -2029,6 +2039,403 @@ void main() {
       client.dispose();
 
       expect(client.dispose, returnsNormally);
+    });
+  });
+
+  group('offline mode', () {
+    late List<http.BaseRequest> httpRequests;
+    late int appInfoReads;
+
+    setUp(() {
+      httpRequests = [];
+      appInfoReads = 0;
+    });
+
+    DefaultConfigDirectorClient createOfflineClient({
+      String? clientSdkKey,
+      ConnectionOptions connection = const ConnectionOptions(
+        mode: ConnectionMode.offline,
+      ),
+    }) => autoDispose(
+      DefaultConfigDirectorClient(
+        clientSdkKey,
+        options: ConfigDirectorClientOptions(
+          logger: logger,
+          connection: connection,
+        ),
+        httpClient: MockClient((request) async {
+          httpRequests.add(request);
+          return http.Response('', 500);
+        }),
+        telemetryClient: telemetry,
+        transportFactory: (options) {
+          transportOptions.add(options);
+          return transport;
+        },
+        lifecycleWatcher: lifecycleWatcher,
+        appInfoResolver: () async {
+          appInfoReads += 1;
+          return const ConfigDirectorMetaContext();
+        },
+        instanceIdStorage: instanceIdStorage,
+      ),
+    );
+
+    test('accepts a missing client SDK key', () {
+      expect(createOfflineClient, returnsNormally);
+    });
+
+    test('accepts an empty client SDK key', () {
+      expect(() => createOfflineClient(clientSdkKey: ''), returnsNormally);
+    });
+
+    test('serves the in-code default value of every config when given no '
+        'values', () async {
+      final client = createOfflineClient();
+
+      await client.initialize();
+
+      final evaluation = client.evaluate('new-checkout', false);
+      expect(client.isReady, isTrue);
+      expect(evaluation.value, isFalse);
+      expect(evaluation.reason, EvaluationReason.configStateMissing);
+    });
+
+    test('serves an inline value with the found-match reason', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'max-items': 20},
+        ),
+      );
+
+      await client.initialize();
+
+      final evaluation = client.evaluate('max-items', 0);
+      expect(evaluation.value, 20);
+      expect(evaluation.reason, EvaluationReason.foundMatch);
+    });
+
+    test('rejects initialization for a null value', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': null},
+        ),
+      );
+
+      await expectLater(
+        client.initialize(),
+        throwsA(isA<ConfigDirectorInitializationException>()),
+      );
+
+      expect(client.isReady, isFalse);
+      expect(client.isInitializing, isFalse);
+    });
+
+    test('rejects initialization for a value of an unsupported type', () async {
+      final client = createOfflineClient(
+        connection: ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'launch-date': DateTime(2026)},
+        ),
+      );
+
+      await expectLater(
+        client.initialize(),
+        throwsA(isA<ConfigDirectorInitializationException>()),
+      );
+
+      expect(client.isReady, isFalse);
+    });
+
+    test('rejects initialization when values are given in streaming '
+        'mode', () async {
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.streaming,
+            values: {'new-checkout': true},
+            timeout: Duration(milliseconds: 50),
+          ),
+        ),
+      );
+
+      await expectLater(
+        client.initialize(),
+        throwsA(isA<ConfigDirectorInitializationException>()),
+      );
+
+      expect(client.isReady, isFalse);
+      expect(transport.connectCalls, isEmpty);
+    });
+
+    test('rejects initialization when values are given in polling '
+        'mode', () async {
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.polling,
+            values: {'new-checkout': true},
+            timeout: Duration(milliseconds: 50),
+          ),
+        ),
+      );
+
+      await expectLater(
+        client.initialize(),
+        throwsA(isA<ConfigDirectorInitializationException>()),
+      );
+
+      expect(client.isReady, isFalse);
+      expect(transport.connectCalls, isEmpty);
+    });
+
+    test('becomes ready at once and fires the ready and configs updated '
+        'events once', () {
+      fakeAsync((async) {
+        final client = createOfflineClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.offline,
+            values: {'new-checkout': true},
+          ),
+        );
+        final readyEvents = <ClientReadyEvent>[];
+        final configsUpdates = <ConfigsUpdatedEvent>[];
+        client.onClientReady.listen(readyEvents.add);
+        client.onConfigsUpdated.listen(configsUpdates.add);
+
+        var initialized = false;
+        client.initialize().then((_) => initialized = true);
+        async.flushMicrotasks();
+
+        expect(initialized, isTrue);
+        expect(client.isReady, isTrue);
+        expect(readyEvents.single.action, ClientConnectAction.initialization);
+        expect(configsUpdates.single.keys, ['new-checkout']);
+      });
+    });
+
+    test('emits the context update before the ready event', () async {
+      final client = createOfflineClient();
+      final events = <Object>[];
+      client.onContextUpdated.listen(events.add);
+      client.onClientReady.listen(events.add);
+
+      await client.initialize(ConfigDirectorContext(id: 'user-1'));
+      await pumpEventQueue();
+
+      expect(events, [isA<ContextUpdatedEvent>(), isA<ClientReadyEvent>()]);
+    });
+
+    test('updateContext takes the new context at once and changes no '
+        'value', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+      await client.initialize(ConfigDirectorContext(id: 'user-1'));
+      final contextUpdates = <ContextUpdatedEvent>[];
+      final readyEvents = <ClientReadyEvent>[];
+      final configsUpdates = <ConfigsUpdatedEvent>[];
+      client.onContextUpdated.listen(contextUpdates.add);
+      client.onClientReady.listen(readyEvents.add);
+      client.onConfigsUpdated.listen(configsUpdates.add);
+      final newContext = ConfigDirectorContext(id: 'user-2');
+
+      await client.updateContext(newContext);
+      await pumpEventQueue();
+
+      expect(client.context, newContext);
+      expect(contextUpdates.single.context, newContext);
+      expect(client.isReady, isTrue);
+      expect(client.getValue('new-checkout', false), isTrue);
+      expect(readyEvents, isEmpty);
+      expect(configsUpdates, isEmpty);
+    });
+
+    test('keeps the context of an updateContext called while initialize is '
+        'pending', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+      final newContext = ConfigDirectorContext(id: 'user-2');
+
+      final initialization = client.initialize(
+        ConfigDirectorContext(id: 'user-1'),
+      );
+      await client.updateContext(newContext);
+      await initialization;
+      await pumpEventQueue();
+
+      expect(client.context, newContext);
+      expect(client.isReady, isTrue);
+    });
+
+    test('pauseNetwork and resumeNetwork do nothing', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+      await client.initialize();
+      final readyEvents = <ClientReadyEvent>[];
+      client.onClientReady.listen(readyEvents.add);
+
+      client.pauseNetwork();
+      final readyWhilePaused = client.isReady;
+      await client.resumeNetwork();
+      await pumpEventQueue();
+
+      expect(readyWhilePaused, isTrue);
+      expect(client.getValue('new-checkout', false), isTrue);
+      expect(readyEvents, isEmpty);
+    });
+
+    test('sends no telemetry', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+      await client.initialize(ConfigDirectorContext(id: 'user-1'));
+      client.getValue('new-checkout', false);
+      await client.updateContext(ConfigDirectorContext(id: 'user-2'));
+
+      client.dispose();
+
+      expect(telemetry.events, isEmpty);
+      expect(telemetry.contextUpdates, isEmpty);
+      expect(telemetry.closeCount, 0);
+    });
+
+    test('does not follow the app lifecycle', () {
+      createOfflineClient();
+
+      expect(lifecycleWatcher.isStarted, isFalse);
+    });
+
+    test('serves the in-code default value for a value of another '
+        'type', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+
+      await client.initialize();
+
+      final evaluation = client.evaluate('new-checkout', 'off');
+      expect(evaluation.value, 'off');
+      expect(evaluation.reason, EvaluationReason.typeMismatch);
+    });
+
+    test('watch emits the offline value once', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+      await client.initialize();
+      final emitted = <bool>[];
+      client.watch('new-checkout', false).listen(emitted.add);
+      await pumpEventQueue();
+
+      await client.updateContext(ConfigDirectorContext(id: 'user-2'));
+      client.pauseNetwork();
+      await client.resumeNetwork();
+      await pumpEventQueue();
+
+      expect(emitted, [true]);
+    });
+
+    test('opens no connection', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'new-checkout': true},
+        ),
+      );
+
+      await client.initialize(ConfigDirectorContext(id: 'user-1'));
+      await client.updateContext(ConfigDirectorContext(id: 'user-2'));
+      client.pauseNetwork();
+      await client.resumeNetwork();
+      await pumpEventQueue();
+
+      expect(httpRequests, isEmpty);
+      expect(transport.connectCalls, isEmpty);
+    });
+
+    test('reads nothing from the platform', () async {
+      final client = createOfflineClient();
+
+      await client.initialize();
+
+      expect(appInfoReads, 0);
+      expect(instanceIdStorage.readCount, 0);
+      expect(instanceIdStorage.writes, isEmpty);
+    });
+
+    test('updateContext ignores a context with an invalid context '
+        'kind', () async {
+      final client = createOfflineClient();
+      await client.initialize(ConfigDirectorContext(id: 'user-1'));
+
+      await client.updateContext(
+        ConfigDirectorContext(id: 'device-1', kind: 'Not Valid'),
+      );
+
+      expect(client.context, isNull);
+    });
+
+    test('ignores the timeout', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          timeout: Duration.zero,
+        ),
+      );
+
+      await client.initialize();
+
+      expect(client.isReady, isTrue);
+    });
+
+    test('ignores the base URL', () async {
+      final client = createOfflineClient(
+        connection: ConnectionOptions(
+          mode: ConnectionMode.offline,
+          baseUrl: Uri.parse('/proxy'),
+        ),
+      );
+
+      await client.initialize();
+
+      expect(client.isReady, isTrue);
+    });
+
+    test('ignores the polling interval', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          pollingInterval: Duration.zero,
+        ),
+      );
+
+      await client.initialize();
+
+      expect(client.isReady, isTrue);
+      expect(logger.warnings, isEmpty);
     });
   });
 }

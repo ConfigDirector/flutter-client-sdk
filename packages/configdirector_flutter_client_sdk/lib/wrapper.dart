@@ -8,7 +8,7 @@ import 'src/sdk_identity.dart';
 export 'src/sdk_identity.dart' show SdkIdentity;
 
 ConfigDirectorClient createWrapperClient({
-  required String clientSdkKey,
+  String? clientSdkKey,
   required SdkIdentity identity,
   ConfigDirectorClientOptions? options,
 }) => DefaultConfigDirectorClient(

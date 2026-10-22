@@ -371,4 +371,10 @@ enum ConnectionMode {
 
   /// Fetches config state during initialization and then on a fixed interval.
   polling,
+
+  /// Never connects to ConfigDirector and sends nothing. The client serves
+  /// the values given in `ConnectionOptions.values`, the same value to every
+  /// context, or the in-code default value of every config when none are
+  /// given.
+  offline,
 }

@@ -78,8 +78,7 @@ abstract interface class Transport {
   /// unrecoverable status. [action] is what prompted the attempt.
   ///
   /// [ConnectOutcome.connected] does not imply config state was received; that
-  /// arrives on [configSets]. Never throws: failures are logged, and an
-  /// unrecoverable one stops the transport from retrying.
+  /// arrives on [configSets].
   Future<ConnectOutcome> connect(
     ConfigDirectorContext context,
     Duration timeout,

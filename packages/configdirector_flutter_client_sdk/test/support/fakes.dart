@@ -218,6 +218,7 @@ final class FakeInstanceIdStorage implements InstanceIdStorage {
   Object? readFailure;
   Object? writeFailure;
   bool writeStores = true;
+  int readCount = 0;
   final List<String> writes = [];
 
   Completer<void>? heldRead;
@@ -225,6 +226,7 @@ final class FakeInstanceIdStorage implements InstanceIdStorage {
 
   @override
   Future<String?> read() async {
+    readCount += 1;
     await heldRead?.future;
     final failure = readFailure;
     if (failure != null) {

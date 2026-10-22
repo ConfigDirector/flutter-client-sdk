@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../constants.dart' as constants;
+import '../errors.dart';
 import '../logger.dart';
 import '../types.dart';
 
@@ -9,6 +10,7 @@ import '../types.dart';
 final class ConnectionOptions {
   const ConnectionOptions({
     this.mode = ConnectionMode.streaming,
+    this.values,
     this.pollingInterval = constants.defaultPollingInterval,
     this.timeout = const Duration(seconds: 3),
     this.baseUrl,
@@ -21,14 +23,32 @@ final class ConnectionOptions {
   /// updates whenever config state changes in the ConfigDirector dashboard.
   /// With [ConnectionMode.polling] config state is fetched during
   /// initialization and re-fetched every [pollingInterval], which defaults to
-  /// 60 seconds and is never shorter than 30 seconds.
+  /// 60 seconds and is never shorter than 30 seconds. With
+  /// [ConnectionMode.offline] the client never connects and serves [values]
+  /// instead.
   final ConnectionMode mode;
+
+  /// The values to serve when [mode] is [ConnectionMode.offline], keyed by
+  /// config key.
+  ///
+  /// The config type of each value follows from its type: a `bool` is a
+  /// boolean config, an `int` an integer config, a `double` a float config, a
+  /// `String` a string config, and a `Map` with `String` keys or a `List` a
+  /// JSON config. Every context receives the same value. The values are read
+  /// once, when the client is created. Leave them out to serve the in-code
+  /// default value of every config.
+  ///
+  /// `initialize` throws a [ConfigDirectorInitializationException] when a
+  /// value is `null`, a non-finite number, on the web an integer beyond
+  /// 2^53 - 1 in either direction, or of any other type, when a key is blank,
+  /// or when values are given in a mode other than [ConnectionMode.offline].
+  final Map<String, Object?>? values;
 
   /// How often to re-fetch config state when [mode] is [ConnectionMode.polling].
   ///
   /// Defaults to 60 seconds. The minimum is 30 seconds. A value below the
   /// minimum is raised to the minimum and a warning is logged. It has no effect
-  /// when streaming.
+  /// in the other modes.
   final Duration pollingInterval;
 
   /// How long to wait for initialization and context updates. Must be
@@ -40,12 +60,13 @@ final class ConnectionOptions {
   ///
   /// When streaming, the operation may still succeed after it times out, as
   /// long as no unrecoverable errors are encountered. When polling, a fetch
-  /// that timed out is retried on the next polling interval.
+  /// that timed out is retried on the next polling interval. It has no effect
+  /// in [ConnectionMode.offline].
   final Duration timeout;
 
   /// The base URL of the ConfigDirector SDK server. Set this only when routing
   /// through a proxy. Refer to the docs on how to configure a proxy for the
-  /// client SDK.
+  /// client SDK. It has no effect in [ConnectionMode.offline].
   final Uri? baseUrl;
 
   /// Whether to pause the connection while the app is in the background and
@@ -53,7 +74,8 @@ final class ConnectionOptions {
   ///
   /// Mobile operating systems terminate background connections on their own, so
   /// this is enabled by default. Set it to `false` to manage the connection
-  /// yourself with `pauseNetwork` and `resumeNetwork`.
+  /// yourself with `pauseNetwork` and `resumeNetwork`. It has no effect in
+  /// [ConnectionMode.offline], which has no connection to pause.
   final bool pauseWhileBackgrounded;
 }
 

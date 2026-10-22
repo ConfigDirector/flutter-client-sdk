@@ -3,13 +3,18 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../errors.dart';
-import '../telemetry/value_id.dart';
-import '../types.dart';
+import 'errors.dart';
+import 'telemetry/value_id.dart';
+import 'types.dart';
 
 const int _maxSafeInteger = 9007199254740991;
 
-ConfigState encodeTestValue(String key, Object? value) {
+Map<String, ConfigState> encodeNativeValues(Map<String, Object?> values) => {
+  for (final MapEntry(:key, :value) in values.entries)
+    key: encodeNativeValue(key, value),
+};
+
+ConfigState encodeNativeValue(String key, Object? value) {
   if (key.trim().isEmpty) {
     throw ConfigDirectorValidationException(
       "Invalid config key '$key'. The key must not be blank.",
@@ -28,8 +33,7 @@ ConfigState encodeTestValue(String key, Object? value) {
 
 (ConfigType, String) _encode(String key, Object? value) => switch (value) {
   null => throw ConfigDirectorValidationException(
-    "Invalid value for '$key'. The value must not be null; call removeValue "
-    'to remove a config.',
+    "Invalid value for '$key'. The value must not be null.",
   ),
   bool() => (ConfigType.boolean, value.toString()),
   num() when !value.isFinite => throw _nonFinite(key),

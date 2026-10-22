@@ -43,3 +43,13 @@ final class WidgetsBindingLifecycleWatcher implements AppLifecycleWatcher {
     _listener = null;
   }
 }
+
+final class NoLifecycleWatcher implements AppLifecycleWatcher {
+  const NoLifecycleWatcher();
+
+  @override
+  void start(void Function(AppLifecycleState state) onStateChanged) {}
+
+  @override
+  void stop() {}
+}

@@ -1,3 +1,4 @@
+import '../errors.dart';
 import '../types.dart';
 import 'client_events.dart';
 import 'client_options.dart';
@@ -22,8 +23,25 @@ abstract interface class ConfigDirectorClient {
   ///
   /// The client is not ready to serve config values until [initialize]
   /// completes. Until then, every config evaluates to its default value.
+  ///
+  /// [clientSdkKey] may be left out in [ConnectionMode.offline], which never
+  /// connects:
+  ///
+  /// ```dart
+  /// final client = ConfigDirectorClient(
+  ///   options: const ConfigDirectorClientOptions(
+  ///     connection: ConnectionOptions(
+  ///       mode: ConnectionMode.offline,
+  ///       values: {'new-checkout': true},
+  ///     ),
+  ///   ),
+  /// );
+  /// ```
+  ///
+  /// In every other mode, a missing or blank [clientSdkKey] throws a
+  /// [ConfigDirectorValidationException].
   factory ConfigDirectorClient({
-    required String clientSdkKey,
+    String? clientSdkKey,
     ConfigDirectorClientOptions? options,
   }) {
     return DefaultConfigDirectorClient(clientSdkKey, options: options);
@@ -38,6 +56,11 @@ abstract interface class ConfigDirectorClient {
   /// connect. If it fails with a persistent error, such as an invalid SDK key,
   /// the client stops trying and logs an error.
   ///
+  /// In [ConnectionMode.offline] it opens no connection and completes once the
+  /// values given in [ConnectionOptions.values] are loaded, with the client
+  /// ready. It throws a [ConfigDirectorInitializationException] when they
+  /// cannot be loaded, and the client is then not ready.
+  ///
   /// [context] is the current user's context, used to evaluate targeting rules.
   /// A [context] whose [ConfigDirectorContext.kind] is invalid is ignored as a
   /// whole: the client logs an error and evaluates configs as if no context
@@ -50,6 +73,9 @@ abstract interface class ConfigDirectorClient {
   /// whole: the client logs an error, stops using the previous context, and
   /// evaluates configs as if no context was given, so the `context` getter
   /// reads `null` afterwards.
+  ///
+  /// In [ConnectionMode.offline] the new context takes effect at once and no
+  /// config value changes.
   Future<void> updateContext(ConfigDirectorContext context);
 
   /// The context the client is currently evaluating configs against, or `null`
@@ -58,11 +84,12 @@ abstract interface class ConfigDirectorClient {
   ///
   /// This does not change the moment [updateContext] is called: configs are
   /// evaluated against the previous context until the underlying connection
-  /// succeeds or times out.
+  /// succeeds or times out. In [ConnectionMode.offline] it changes at once.
   ConfigDirectorContext? get context;
 
   /// Whether the client is ready, meaning the connection to the server
-  /// succeeded and config state was received.
+  /// succeeded and config state was received. In [ConnectionMode.offline] it
+  /// is ready once [initialize] has loaded the offline values.
   bool get isReady;
 
   /// Whether the client is trying to get its very first config state from the
@@ -144,12 +171,14 @@ abstract interface class ConfigDirectorClient {
   ///
   /// The client does this on its own while the app is backgrounded, unless
   /// [ConnectionOptions.pauseWhileBackgrounded] is disabled. Call
-  /// [resumeNetwork] to re-establish the connection.
+  /// [resumeNetwork] to re-establish the connection. It does nothing in
+  /// [ConnectionMode.offline].
   void pauseNetwork();
 
   /// Resumes a connection paused by [pauseNetwork], reusing the last context
   /// given to [initialize] or [updateContext], or no context when that one was
-  /// ignored for an invalid [ConfigDirectorContext.kind].
+  /// ignored for an invalid [ConfigDirectorContext.kind]. It does nothing in
+  /// [ConnectionMode.offline].
   Future<void> resumeNetwork();
 
   /// Disposes of the client: closes the connection, every watch stream, and

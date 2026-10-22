@@ -5,6 +5,39 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ConnectionMode.offline` runs the client without connecting to ConfigDirector, for example in a
+  suite of UI tests that pins every flag to a known value. `ConnectionOptions.values` takes the
+  values to serve, one per config key, typed the way the test client types them: a `bool`, an
+  `int`, a `double`, a `String`, or a `Map` with `String` keys or a `List` for a JSON config. The
+  result of `jsonDecode` can be passed as it is. Every context receives the same value, and the
+  values are read when the client is created. Without `values`, every config serves its in-code
+  default value with the `configStateMissing` reason. An offline client opens no connection,
+  sends no telemetry, does not follow the app lifecycle, and reads neither the app name and
+  version nor a stored instance ID from the platform, so the app is invisible to the
+  ConfigDirector dashboard. `initialize` completes once the values are loaded, with the client
+  ready and `onClientReady` emitted once, and served values keep the `foundMatch` reason.
+  `updateContext` takes the new context at once and changes no value, `pauseNetwork` and
+  `resumeNetwork` do nothing, and `timeout`, `pollingInterval`, `baseUrl` and
+  `pauseWhileBackgrounded` have no effect. A `switch` that lists every `ConnectionMode` needs a
+  case for `offline`.
+- `ConfigDirectorInitializationException`, thrown by `initialize` when the offline values cannot be
+  loaded: a `null` value, a non-finite number, on the web an integer beyond 2^53 − 1 in either
+  direction, a value of another type, a blank key, or `values` given in `streaming` or `polling`
+  mode. The client is then not ready. In every other case
+  `initialize` still throws nothing.
+
+### Changed
+
+- `ConfigDirectorClient` no longer requires `clientSdkKey`: it can be left out, or be empty, in
+  offline mode. In `streaming` and `polling` mode a missing or blank key still throws a
+  `ConfigDirectorValidationException` when the client is created, so leaving it out there is now
+  caught at that point instead of by the compiler. `createWrapperClient` in `wrapper.dart` takes
+  the key the same way.
+- The test client refuses a `null` value with a message that no longer suggests `removeValue`. The
+  exception is still a `ConfigDirectorValidationException`.
+
 ## [1.6.0] - 2026-10-14
 
 ### Added
