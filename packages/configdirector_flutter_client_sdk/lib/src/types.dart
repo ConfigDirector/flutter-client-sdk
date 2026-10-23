@@ -163,10 +163,12 @@ final class ConfigDirectorContext {
   /// The user's identifier. This should be a value that uniquely identifies an
   /// application user.
   ///
-  /// For anonymous users you may generate a UUID, or leave this unset and let
-  /// the SDK generate a random one. Keep in mind that this value is used to
-  /// segment users in percentage rollouts, so changing it can move a user into
-  /// a different percentile.
+  /// For anonymous users you may generate a UUID, or leave this unset.
+  /// ConfigDirector then derives an identifier from an ID the SDK stores for
+  /// the app install or the website, so it stays the same until the app is
+  /// uninstalled or its data is cleared. Keep in mind that this value is used
+  /// to segment users in percentage rollouts, so changing it can move a user
+  /// into a different percentile.
   final String? id;
 
   /// The context kind, such as `user`, `device` or `organization`, exactly as

@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/fakes.dart';
 
 const String _storedId = '11111111-1111-4111-8111-111111111111';
-const Duration _sixHours = Duration(hours: 6);
+const Duration _oneYear = Duration(days: 366);
 
 void main() {
   late RecordingLogger logger;
@@ -36,20 +36,18 @@ void main() {
     logger: logger,
   );
 
-  test(
-    'reuses the stored instance ID while it is under six hours old',
-    () async {
-      final createdAt = now() - _sixHours.inMilliseconds + 60000;
-      storage.record = record(createdAt: createdAt);
+  test('reuses the stored instance ID without rewriting it a year after it was '
+      'generated', () async {
+    final createdAt = now() - _oneYear.inMilliseconds;
+    storage.record = record(createdAt: createdAt);
 
-      final session = await settle();
+    final session = await settle();
 
-      expect(session.instanceId, _storedId);
-      expect(session.ephemeral, isFalse);
-      expect(storage.writes, isEmpty);
-      expect(storedRecord()['createdAt'], createdAt);
-    },
-  );
+    expect(session.instanceId, _storedId);
+    expect(session.ephemeral, isFalse);
+    expect(storage.writes, isEmpty);
+    expect(storedRecord()['createdAt'], createdAt);
+  });
 
   test('generates an instance ID and stores it with its creation time when '
       'nothing is stored', () async {
@@ -68,28 +66,15 @@ void main() {
     );
   });
 
-  test(
-    'generates and stores a new instance ID when the stored one is six hours '
-    'old',
-    () async {
-      storage.record = record(createdAt: now() - _sixHours.inMilliseconds);
-
-      final session = await settle();
-
-      expect(session.instanceId, isNot(_storedId));
-      expect(session.ephemeral, isFalse);
-      expect(storedRecord()['id'], session.instanceId);
-    },
-  );
-
-  test('generates a new instance ID when the stored creation time is in the '
+  test('reuses the stored instance ID when its creation time is in the '
       'future', () async {
     storage.record = record(createdAt: now() + 60000);
 
     final session = await settle();
 
-    expect(session.instanceId, isNot(_storedId));
-    expect(storedRecord()['id'], session.instanceId);
+    expect(session.instanceId, _storedId);
+    expect(session.ephemeral, isFalse);
+    expect(storage.writes, isEmpty);
   });
 
   test('generates a new instance ID when the stored creation time is not '

@@ -22,7 +22,6 @@ abstract interface class InstanceIdStorage {
 }
 
 const int _recordVersion = 1;
-const Duration _maxAge = Duration(hours: 6);
 const Duration _storageDeadline = Duration(seconds: 1);
 final RegExp _uuidV4Pattern = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
@@ -55,8 +54,8 @@ Future<ClientSession> settleClientSession({
   final deadline = Timer(_storageDeadline, () {
     logger.warn(
       '[ConfigDirectorClient] The instance ID storage did not respond within '
-      '${_storageDeadline.inMilliseconds}ms, so this app start counts as a new '
-      'client session.',
+      '${_storageDeadline.inMilliseconds}ms, so this app start looks like a '
+      'new install to ConfigDirector.',
     );
     settled.complete(provisional);
   });
@@ -84,8 +83,7 @@ Future<ClientSession> _settledFromStorage(
   required bool Function() deadlinePassed,
   required ConfigDirectorLogger logger,
 }) async {
-  final now = DateTime.now().millisecondsSinceEpoch;
-  final storedInstanceId = await _storedInstanceId(storage, now, logger);
+  final storedInstanceId = await _storedInstanceId(storage, logger);
   switch (storedInstanceId) {
     case _Current(:final instanceId):
       return ClientSession(instanceId: instanceId, ephemeral: false);
@@ -95,7 +93,7 @@ Future<ClientSession> _settledFromStorage(
       if (deadlinePassed()) {
         return provisional;
       }
-      final stored = await _store(storage, provisional.instanceId, now, logger);
+      final stored = await _store(storage, provisional.instanceId, logger);
       return ClientSession(
         instanceId: provisional.instanceId,
         ephemeral: !stored,
@@ -105,7 +103,6 @@ Future<ClientSession> _settledFromStorage(
 
 Future<_StoredInstanceId> _storedInstanceId(
   InstanceIdStorage storage,
-  int now,
   ConfigDirectorLogger logger,
 ) async {
   final String? raw;
@@ -138,17 +135,9 @@ Future<_StoredInstanceId> _storedInstanceId(
   if (record['v'] != _recordVersion ||
       instanceId is! String ||
       !_uuidV4Pattern.hasMatch(instanceId) ||
-      createdAt is! int) {
+      createdAt is! int ||
+      createdAt <= 0) {
     return _failedValidation(logger);
-  }
-
-  final age = now - createdAt;
-  if (age < 0 || age >= _maxAge.inMilliseconds) {
-    logger.debug(
-      '[ConfigDirectorClient] The stored instance ID has expired, generating '
-      'a new one',
-    );
-    return const _NothingUsable();
   }
 
   return _Current(instanceId);
@@ -165,13 +154,12 @@ _StoredInstanceId _failedValidation(ConfigDirectorLogger logger) {
 Future<bool> _store(
   InstanceIdStorage storage,
   String instanceId,
-  int createdAt,
   ConfigDirectorLogger logger,
 ) async {
   final record = jsonEncode({
     'v': _recordVersion,
     'id': instanceId,
-    'createdAt': createdAt,
+    'createdAt': DateTime.now().millisecondsSinceEpoch,
   });
   final bool stored;
   try {
@@ -189,4 +177,5 @@ Future<bool> _store(
 
 String _couldNot(String action) =>
     '[ConfigDirectorClient] The ConfigDirector SDK could not $action its '
-    'instance ID, so this app start counts as a new client session.';
+    'instance ID, so this app start looks like a new install to '
+    'ConfigDirector.';

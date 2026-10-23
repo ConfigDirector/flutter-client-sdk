@@ -37,6 +37,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the key the same way.
 - The test client refuses a `null` value with a message that no longer suggests `removeValue`. The
   exception is still a `ConfigDirectorValidationException`.
+- The instance ID the SDK stores with `shared_preferences` now lasts for the life of the install,
+  or on the web until the site's data is cleared, instead of being replaced six hours after it was
+  created, so a person using the app without a context ID counts as one monthly active user a
+  month. An instance ID stored by an earlier version is kept.
 
 ## [1.6.0] - 2026-10-14
 
