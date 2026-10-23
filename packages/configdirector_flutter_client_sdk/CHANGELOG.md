@@ -7,6 +7,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The client keeps the last values it received from ConfigDirector on the device, through
+  `shared_preferences`, and serves them on the next launch of the same context until live values
+  arrive, so an app opened without a network shows the values ConfigDirector last sent instead of
+  the in-code default values. Every evaluation served this way carries the new evaluation reason
+  `EvaluationReason.cached`, with `isDefaultValue` false; a `switch` that lists every
+  `EvaluationReason` needs a case for it. The client is not ready while it serves them: `isReady`
+  stays false, `isInitializing` stays true, `initialize` still waits for live values or its
+  timeout, and `onClientReady` emits when live values arrive; the new `onCachedValuesLoaded`
+  stream emits a `CachedValuesLoadedEvent` when the kept values are loaded, followed by
+  `onConfigsUpdated` with their keys. A class that implements `ConfigDirectorClient` needs the new
+  getter. The new `ConfigDirectorClientOptions.caching`, a `CachingOptions`, turns this off with
+  `enabled: false` or replaces the store with a `CachingProvider` of your own (`read`, `write`,
+  `remove` and `sizeLimit` in bytes), both exported; the default store keeps the entry under a key
+  derived from the client SDK key with a size limit of 256 KB, above which nothing is kept.
+  Nothing is kept in `ConnectionMode.offline`, and the test client keeps nothing.
 - `ConnectionMode.offline` runs the client without connecting to ConfigDirector, for example in a
   suite of UI tests that pins every flag to a known value. `ConnectionOptions.values` takes the
   values to serve, one per config key, typed the way the test client types them: a `bool`, an

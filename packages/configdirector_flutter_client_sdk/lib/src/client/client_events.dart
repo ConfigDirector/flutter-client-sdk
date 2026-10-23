@@ -32,13 +32,26 @@ final class ClientReadyEvent {
   String toString() => 'ClientReadyEvent(action: ${action.description})';
 }
 
-/// Emitted when config state is received from the server.
+/// Emitted when the values kept on the device from the last payload are
+/// loaded and served, before live values arrive. The client is not ready
+/// while it serves them; [ConfigsUpdatedEvent] follows with their keys.
+@immutable
+final class CachedValuesLoadedEvent {
+  const CachedValuesLoadedEvent();
+
+  @override
+  String toString() => 'CachedValuesLoadedEvent()';
+}
+
+/// Emitted when config state is received from the server, or when the values
+/// kept on the device are loaded.
 @immutable
 final class ConfigsUpdatedEvent {
   const ConfigsUpdatedEvent(this.keys, {this.removedKeys = const []});
 
   /// The keys of the configs contained in the update. On a delta update, these
-  /// are only the configs that changed.
+  /// are only the configs that changed. When the values kept on the device are
+  /// loaded, these are their keys.
   final List<String> keys;
 
   /// The keys of the configs a full update no longer contained, so the client

@@ -33,6 +33,7 @@ final class InMemoryConnection {
         connection: ConnectionOptions(
           timeout: timeout ?? const ConnectionOptions().timeout,
         ),
+        caching: const CachingOptions(enabled: false),
         logger: logger,
       ),
       transportFactory: (options) {

@@ -5,6 +5,7 @@ import 'package:configdirector_flutter_client_sdk/testing.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fakes.dart';
 
@@ -30,6 +31,18 @@ void main() {
     addTearDown(testClient.client.dispose);
     return testClient;
   }
+
+  test('keeps nothing on the device', () async {
+    SharedPreferences.setMockInitialValues({});
+    final testClient = create(values: {'flag': true}, logger: logger);
+
+    await testClient.client.initialize();
+    testClient.setValue('flag', false);
+    await pumpEventQueue();
+
+    expect((await SharedPreferences.getInstance()).getKeys(), isEmpty);
+    expect(logger.warnings, isEmpty);
+  });
 
   group('values', () {
     test('S1 reads every seeded value with a matching default', () async {

@@ -5,6 +5,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
+import '../cached_values.dart';
 import '../client_session.dart';
 import '../context_admission.dart';
 import '../errors.dart';
@@ -12,6 +13,7 @@ import '../lifecycle.dart';
 import '../logger.dart';
 import '../platform/app_info.dart';
 import '../platform/instance_id_storage.dart';
+import '../platform/shared_preferences_caching_provider.dart';
 import '../platform/user_agent.dart';
 import '../sdk_identity.dart';
 import '../telemetry/discarding_telemetry_client.dart';
@@ -34,6 +36,8 @@ import 'connection_plan.dart';
 typedef TransportFactory = Transport Function(TransportOptions options);
 
 const int _maxBackoffExponent = 9;
+
+enum _ConfigSetSource { none, cachedValues, livePayload }
 
 final class _ConfigWatcher {
   _ConfigWatcher({required this.reevaluate, required this.close});
@@ -73,6 +77,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           pauseWhileBackgrounded: false,
           lifecycleWatcher: const NoLifecycleWatcher(),
           connectPrerequisites: Future.value(),
+          cachedValuesStore: null,
         );
       case final Connect live:
         final provisionalSession = clientSession ?? ClientSession.provisional();
@@ -99,6 +104,12 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                     instanceIdStorage ?? sharedPreferencesInstanceIdStorage(),
                 logger: logger,
               );
+
+        final cachingPlan = planCaching(
+          live,
+          options?.caching ?? const CachingOptions(),
+          sharedPreferencesCachingProvider,
+        );
 
         return DefaultConfigDirectorClient._(
           logger: logger,
@@ -133,6 +144,35 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
               (session) => transportOptions.clientSession = session,
             ),
           ]),
+          cachedValuesStore: _cachedValuesStoreFor(
+            cachingPlan,
+            instanceId: settledClientSession.then(
+              (session) => session.instanceId,
+            ),
+            logger: logger,
+          ),
+        );
+    }
+  }
+
+  static CachedValuesStore? _cachedValuesStoreFor(
+    CachingPlan cachingPlan, {
+    required Future<String> instanceId,
+    required ConfigDirectorLogger logger,
+  }) {
+    switch (cachingPlan) {
+      case KeepNothing():
+        logger.debug(
+          '[ConfigDirectorClient] No values are kept on the device: caching '
+          'is turned off',
+        );
+        return null;
+      case KeepValues(:final provider, :final clientSdkKey):
+        return CachedValuesStore(
+          provider: provider,
+          clientSdkKey: clientSdkKey,
+          instanceId: instanceId,
+          logger: logger,
         );
     }
   }
@@ -146,6 +186,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     required bool pauseWhileBackgrounded,
     required AppLifecycleWatcher lifecycleWatcher,
     required Future<void> connectPrerequisites,
+    required CachedValuesStore? cachedValuesStore,
   }) : _logger = logger,
        _connectionPlan = connectionPlan,
        _timeout = timeout,
@@ -153,7 +194,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
        _transport = transport,
        _pauseWhileBackgrounded = pauseWhileBackgrounded,
        _lifecycleWatcher = lifecycleWatcher,
-       _connectPrerequisites = connectPrerequisites {
+       _connectPrerequisites = connectPrerequisites,
+       _cachedValuesStore = cachedValuesStore {
     _configSetSubscription = _transport.configSets.listen(_applyConfigSet);
     _lifecycleWatcher.start(_followAppLifecycle);
   }
@@ -166,6 +208,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   final bool _pauseWhileBackgrounded;
   final AppLifecycleWatcher _lifecycleWatcher;
   final Future<void> _connectPrerequisites;
+  final CachedValuesStore? _cachedValuesStore;
 
   late final StreamSubscription<ConfigSet> _configSetSubscription;
 
@@ -179,6 +222,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       StreamController<ContextUpdatedEvent>.broadcast();
   final StreamController<ConfigEvaluatedEvent> _configEvaluated =
       StreamController<ConfigEvaluatedEvent>.broadcast();
+  final StreamController<CachedValuesLoadedEvent> _cachedValuesLoaded =
+      StreamController<CachedValuesLoadedEvent>.broadcast();
 
   ConfigSet? _configSet;
   ConfigDirectorContext? _currentContext;
@@ -188,6 +233,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   ClientConnectAction _pendingAction = ClientConnectAction.initialization;
   bool _ready = false;
   bool _initializing = false;
+  _ConfigSetSource _configSetSource = _ConfigSetSource.none;
+  bool _cachedValuesAdoptionStarted = false;
   bool _hasConnected = false;
   bool _pausedWhileBackgrounded = false;
   bool _disposed = false;
@@ -205,23 +252,32 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   Stream<ConfigEvaluatedEvent> get onConfigEvaluated => _configEvaluated.stream;
 
   @override
+  Stream<CachedValuesLoadedEvent> get onCachedValuesLoaded =>
+      _cachedValuesLoaded.stream;
+
+  @override
   ConfigDirectorContext? get context => _currentContext;
 
   @override
   bool get isReady => _ready;
 
   @override
-  bool get isInitializing => _initializing && _configSet == null;
+  bool get isInitializing =>
+      _initializing && _configSetSource != _ConfigSetSource.livePayload;
 
   @override
   Future<void> initialize([ConfigDirectorContext? context]) {
     _initializing = true;
     const action = ClientConnectAction.initialization;
     final admittedContext = _admittedContext(context, action);
-    return switch (_connectionPlan) {
-      Connect() => _connect(admittedContext, action),
-      StayOffline() => _loadOfflineValues(admittedContext),
-    };
+    switch (_connectionPlan) {
+      case Connect():
+        final connection = _connect(admittedContext, action);
+        _startCachedValuesAdoption();
+        return connection;
+      case StayOffline():
+        return _loadOfflineValues(admittedContext);
+    }
   }
 
   @override
@@ -350,6 +406,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     unawaited(_configsUpdated.close());
     unawaited(_contextUpdated.close());
     unawaited(_configEvaluated.close());
+    unawaited(_cachedValuesLoaded.close());
   }
 
   ConfigDirectorContext? _admittedContext(
@@ -443,6 +500,66 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
   }
 
+  void _startCachedValuesAdoption() {
+    final store = _cachedValuesStore;
+    if (store == null || _cachedValuesAdoptionStarted) {
+      return;
+    }
+    _cachedValuesAdoptionStarted = true;
+    unawaited(_adoptCachedValues(store));
+  }
+
+  Future<void> _adoptCachedValues(CachedValuesStore store) async {
+    final read = await store.read();
+    final CachedValues cachedValues;
+    switch (read) {
+      case NoCachedValues() ||
+          CachedValuesUnreadable() ||
+          CachedValuesReadFailed():
+        return;
+      case CachedValuesStored(cachedValues: final stored):
+        cachedValues = stored;
+    }
+    final launchContextTag = await store.contextTagOf(_requestedContext);
+    if (_disposed) {
+      return;
+    }
+    final adoption = decideCachedValuesAdoption(
+      cachedValues,
+      launchContextTag,
+      hasReceivedLiveValues: _configSetSource == _ConfigSetSource.livePayload,
+    );
+    switch (adoption) {
+      case CachedValuesAdoption.adopt:
+        _serveCachedValues(cachedValues);
+      case CachedValuesAdoption.liveValuesAlreadyArrived:
+      case CachedValuesAdoption.contextMismatch:
+        _logger.debug(
+          '[ConfigDirectorClient] The values kept on the device were not '
+          'adopted: ${adoption.description}',
+        );
+    }
+  }
+
+  void _serveCachedValues(CachedValues cachedValues) {
+    _configSet = ConfigSet(
+      environmentId: cachedValues.environmentId,
+      projectId: cachedValues.projectId,
+      configs: cachedValues.configs,
+      kind: ConfigSetKind.full,
+    );
+    _configSetSource = _ConfigSetSource.cachedValues;
+    final keys = cachedValues.configs.keys.toList(growable: false);
+
+    _emit(_cachedValuesLoaded, const CachedValuesLoadedEvent());
+    _emit(_configsUpdated, ConfigsUpdatedEvent(keys));
+    _reevaluateWatchers(keys);
+    _logger.debug(
+      '[ConfigDirectorClient] Serving the values kept on the device until '
+      'live values arrive: $keys',
+    );
+  }
+
   void _adoptContext(ConfigDirectorContext? context) {
     _currentContext = context;
     unawaited(_telemetry.updateContext(context));
@@ -502,21 +619,27 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         : current.configs.keys
               .where((key) => !configSet.configs.containsKey(key))
               .toList(growable: false);
-    _configSet = isFull ? configSet : current.mergedWith(configSet);
+    final merged = isFull ? configSet : current.mergedWith(configSet);
+    _configSet = merged;
+    _configSetSource = _ConfigSetSource.livePayload;
+    _cachedValuesStore?.replace(_requestedContext, merged);
 
     _markReady();
     _emit(_configsUpdated, ConfigsUpdatedEvent(keys, removedKeys: removedKeys));
-    final affected = isFull ? _watchers.keys.toList(growable: false) : keys;
-    for (final key in affected) {
-      for (final watcher in _watchers[key] ?? const <_ConfigWatcher>[]) {
-        watcher.reevaluate();
-      }
-    }
+    _reevaluateWatchers(isFull ? _watchers.keys.toList(growable: false) : keys);
 
     _logger.debug(
       '[ConfigDirectorClient] ConfigSet updated from server: $keys, '
       'removed: $removedKeys',
     );
+  }
+
+  void _reevaluateWatchers(List<String> keys) {
+    for (final key in keys) {
+      for (final watcher in _watchers[key] ?? const <_ConfigWatcher>[]) {
+        watcher.reevaluate();
+      }
+    }
   }
 
   void _markReady() {
@@ -569,6 +692,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     }
 
     final result = parseConfigValue(configState, defaultValue);
+    final reason = _servedReason(result.reason);
     _telemetry.evaluatedConfig(
       EvaluatedConfigEvent.fromEvaluation(
         contextId: _currentContext?.id,
@@ -579,7 +703,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         evaluatedValue: result.value,
         evaluatedValueId: result.valueId,
         usedDefault: result.usedDefault,
-        evaluationReason: result.reason,
+        evaluationReason: reason,
       ),
     );
     final evaluation = ConfigEvaluation(
@@ -587,7 +711,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
       value: result.value,
       valueId: result.valueId,
       isDefaultValue: result.usedDefault,
-      reason: result.reason,
+      reason: reason,
       context: _currentContext,
     );
     _emit(_configEvaluated, ConfigEvaluatedEvent(evaluation));
@@ -596,6 +720,12 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     );
     return evaluation;
   }
+
+  EvaluationReason _servedReason(EvaluationReason reason) =>
+      _configSetSource == _ConfigSetSource.cachedValues &&
+          reason == EvaluationReason.foundMatch
+      ? EvaluationReason.cached
+      : reason;
 
   void _followAppLifecycle(AppLifecycleState state) {
     if (_disposed) {

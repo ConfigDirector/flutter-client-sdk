@@ -22,7 +22,9 @@ abstract interface class ConfigDirectorClient {
   /// ConfigDirector dashboard.
   ///
   /// The client is not ready to serve config values until [initialize]
-  /// completes. Until then, every config evaluates to its default value.
+  /// completes. Until then, every config evaluates to its default value, or
+  /// to the value kept on the device from the last launch of the same context
+  /// (see [CachingOptions]).
   ///
   /// [clientSdkKey] may be left out in [ConnectionMode.offline], which never
   /// connects:
@@ -49,7 +51,9 @@ abstract interface class ConfigDirectorClient {
 
   /// Connects to ConfigDirector to retrieve config evaluations. Until
   /// initialization succeeds, every config returns the default value passed to
-  /// [watch] or [getValue].
+  /// [watch] or [getValue], or the value kept on the device from the last
+  /// launch of the same context (see [CachingOptions]); the client is not
+  /// ready while it serves kept values.
   ///
   /// If the connection fails or is interrupted by a transient error (a network
   /// error, an internal server error, and so on) the client keeps trying to
@@ -161,6 +165,10 @@ abstract interface class ConfigDirectorClient {
 
   /// Emitted once a new context has taken effect.
   Stream<ContextUpdatedEvent> get onContextUpdated;
+
+  /// Emits once the values kept on the device from the last payload are loaded
+  /// and served, before live values arrive. See [CachingOptions].
+  Stream<CachedValuesLoadedEvent> get onCachedValuesLoaded;
 
   /// Emitted every time a config is evaluated, by [getValue] or by a [watch]
   /// stream.

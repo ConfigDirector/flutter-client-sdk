@@ -59,6 +59,14 @@ final class ConfigState {
   /// An opaque identifier of the evaluated value, used for telemetry.
   final String? valueId;
 
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'key': key,
+    'type': type.wireName,
+    if (value != null) 'value': value,
+    if (valueId != null) 'valueId': valueId,
+  };
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -319,7 +327,11 @@ enum EvaluationReason {
   invalidJson('invalid-json'),
 
   /// The config value could not be parsed as a boolean.
-  invalidBoolean('invalid-boolean');
+  invalidBoolean('invalid-boolean'),
+
+  /// The value was served from the values kept on the device, before live
+  /// values arrived. It is not an in-code default value.
+  cached('cached');
 
   const EvaluationReason(this.wireName);
 

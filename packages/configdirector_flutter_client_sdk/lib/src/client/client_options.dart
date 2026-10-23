@@ -79,12 +79,53 @@ final class ConnectionOptions {
   final bool pauseWhileBackgrounded;
 }
 
+/// A store the client keeps its last received values in between launches.
+///
+/// The client writes one entry, a string whose format belongs to the SDK and
+/// may change between SDK versions, and reads it back on the next launch. One
+/// instance serves one client. See [CachingOptions].
+abstract interface class CachingProvider {
+  /// Returns the stored entry, or `null` when nothing is stored.
+  Future<String?> read();
+
+  /// Replaces the stored entry. The client never writes an entry larger than
+  /// [sizeLimit].
+  Future<void> write(String value);
+
+  /// Removes the stored entry.
+  Future<void> remove();
+
+  /// The largest entry, in bytes, this store accepts.
+  int sizeLimit();
+}
+
+/// Options for the values the client keeps on the device between launches.
+///
+/// By default, the last values received from ConfigDirector are kept on the
+/// device and served on the next launch of the same context, with the
+/// evaluation reason [EvaluationReason.cached], until live values arrive. The
+/// client is not ready while it serves them. Ignored in
+/// [ConnectionMode.offline].
+@immutable
+final class CachingOptions {
+  const CachingOptions({this.enabled = true, this.provider});
+
+  /// Whether to keep the last values received on the device. With `false`,
+  /// nothing is read or written, even when a [provider] is given.
+  final bool enabled;
+
+  /// The store for the values. Defaults to `shared_preferences`, under a key
+  /// derived from the client SDK key, with a size limit of 256 KB.
+  final CachingProvider? provider;
+}
+
 /// Configuration for a `ConfigDirectorClient`.
 @immutable
 final class ConfigDirectorClientOptions {
   const ConfigDirectorClientOptions({
     this.metadata,
     this.connection = const ConnectionOptions(),
+    this.caching = const CachingOptions(),
     this.logger,
   });
 
@@ -99,6 +140,10 @@ final class ConfigDirectorClientOptions {
 
   /// Connection options.
   final ConnectionOptions connection;
+
+  /// Options for the values kept on the device between launches. See
+  /// [CachingOptions].
+  final CachingOptions caching;
 
   /// Where the SDK writes its logs. Defaults to a [ConsoleLogger] at the
   /// [ConfigDirectorLogLevel.warn] level.

@@ -8,6 +8,7 @@ import 'package:configdirector_flutter_client_sdk/src/constants.dart'
 import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_client.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_value.dart';
+import 'package:configdirector_flutter_client_sdk/src/transport/polling_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/sdk_identity.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
@@ -17,6 +18,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/testing.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 import 'support/fakes.dart';
@@ -30,9 +32,11 @@ void main() {
   late RecordingLogger logger;
   late List<TransportOptions> transportOptions;
   late FakeInstanceIdStorage instanceIdStorage;
+  late FakeCachingProvider cachingProvider;
 
   DefaultConfigDirectorClient createClient({
     ConnectionOptions? connection,
+    CachingOptions? caching,
     ConfigDirectorMetaContext? metadata,
     String? Function()? userAgentResolver,
     AppInfoResolver? appInfoResolver,
@@ -48,6 +52,7 @@ void main() {
       connection:
           connection ??
           const ConnectionOptions(timeout: Duration(milliseconds: 50)),
+      caching: caching ?? CachingOptions(provider: cachingProvider),
     ),
     // Telemetry is faked by default so that tests neither start the telemetry
     // isolate nor leave its flush timer running.
@@ -73,6 +78,7 @@ void main() {
     logger = RecordingLogger();
     transportOptions = [];
     instanceIdStorage = FakeInstanceIdStorage();
+    cachingProvider = FakeCachingProvider();
   });
 
   String record({required int createdAt}) =>
@@ -2438,6 +2444,874 @@ void main() {
       expect(logger.warnings, isEmpty);
     });
   });
+  group('cached values', () {
+    const darkModeOn = {
+      'id': 'dark-mode-id',
+      'key': 'dark-mode',
+      'type': 'boolean',
+      'value': 'true',
+      'valueId': 'value-1',
+    };
+
+    String entry({
+      Map<String, Object?> contextTag = const {
+        'contextKind': 'user',
+        'contextId': 'user-1',
+      },
+      Map<String, Object?> configs = const {'dark-mode': darkModeOn},
+      int formatVersion = 1,
+      String clientSdkKey = 'a-client-sdk-key',
+    }) => jsonEncode({
+      'formatVersion': formatVersion,
+      'clientSdkKey': clientSdkKey,
+      'contextTag': contextTag,
+      'environmentId': 'env-id',
+      'projectId': 'project-id',
+      'configs': configs,
+      'receivedAt': 1760000000000,
+    });
+
+    test('serves the kept values with the cached reason, not ready, until '
+        'live values arrive', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+      final loaded = <CachedValuesLoadedEvent>[];
+      client.onCachedValuesLoaded.listen(loaded.add);
+      final updates = <ConfigsUpdatedEvent>[];
+      client.onConfigsUpdated.listen(updates.add);
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+
+      final evaluation = client.evaluate('dark-mode', false);
+      expect(evaluation.value, isTrue);
+      expect(evaluation.reason, EvaluationReason.cached);
+      expect(evaluation.isDefaultValue, isFalse);
+      expect(evaluation.valueId, 'value-1');
+      expect(client.isReady, isFalse);
+      expect(client.isInitializing, isTrue);
+      expect(loaded, hasLength(1));
+      expect(updates.single.keys, ['dark-mode']);
+      expect(updates.single.removedKeys, isEmpty);
+      expect(telemetry.events.single.usedDefault, isFalse);
+      expect(telemetry.events.single.evaluationReason, EvaluationReason.cached);
+
+      await initialization;
+
+      expect(client.isReady, isFalse);
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.cached,
+      );
+    });
+
+    test('live values replace the kept values, and the entry follows every '
+        'payload with the merged map', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+      final readyEvents = <ClientReadyEvent>[];
+      client.onClientReady.listen(readyEvents.add);
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'false'),
+            'greeting': configState('greeting', ConfigType.string, 'hi'),
+          },
+        ),
+      );
+      await initialization;
+
+      expect(client.isReady, isTrue);
+      expect(client.isInitializing, isFalse);
+      final evaluation = client.evaluate('dark-mode', true);
+      expect(evaluation.value, isFalse);
+      expect(evaluation.reason, EvaluationReason.foundMatch);
+      await pumpEventQueue();
+      expect(readyEvents, hasLength(1));
+      final written = jsonDecode(cachingProvider.writes.single) as Map;
+      expect(written['formatVersion'], 1);
+      expect(written['clientSdkKey'], 'a-client-sdk-key');
+      expect(written['contextTag'], {
+        'contextKind': 'user',
+        'contextId': 'user-1',
+      });
+      expect(written['environmentId'], 'env-id');
+      expect(written['projectId'], 'project-id');
+      expect(written['receivedAt'], isA<int>());
+      expect(written['configs'], {
+        'dark-mode': {
+          'id': 'dark-mode-id',
+          'key': 'dark-mode',
+          'type': 'boolean',
+          'value': 'false',
+          'valueId': 'value-id',
+        },
+        'greeting': {
+          'id': 'greeting-id',
+          'key': 'greeting',
+          'type': 'string',
+          'value': 'hi',
+          'valueId': 'value-id',
+        },
+      });
+
+      transport.emitConfigSet(
+        configSet(
+          kind: ConfigSetKind.delta,
+          configs: {
+            'greeting': configState('greeting', ConfigType.string, 'hello'),
+          },
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(cachingProvider.writes, hasLength(2));
+      final merged = jsonDecode(cachingProvider.writes.last) as Map;
+      expect(merged['configs'], {
+        'dark-mode': {
+          'id': 'dark-mode-id',
+          'key': 'dark-mode',
+          'type': 'boolean',
+          'value': 'false',
+          'valueId': 'value-id',
+        },
+        'greeting': {
+          'id': 'greeting-id',
+          'key': 'greeting',
+          'type': 'string',
+          'value': 'hello',
+          'valueId': 'value-id',
+        },
+      });
+    });
+
+    test('a launch with another context id serves in-code default values, '
+        'and its payload replaces the entry', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+      final loaded = <CachedValuesLoadedEvent>[];
+      client.onCachedValuesLoaded.listen(loaded.add);
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-2'),
+      );
+      await pumpEventQueue();
+
+      final evaluation = client.evaluate('dark-mode', false);
+      expect(evaluation.value, isFalse);
+      expect(evaluation.reason, EvaluationReason.clientNotReady);
+      expect(loaded, isEmpty);
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'false'),
+          },
+        ),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      final written = jsonDecode(cachingProvider.writes.single) as Map;
+      expect(written['contextTag'], {
+        'contextKind': 'user',
+        'contextId': 'user-2',
+      });
+    });
+
+    test('a launch with another context kind and the same id serves in-code '
+        'default values', () async {
+      cachingProvider.stored = entry(
+        contextTag: const {'contextKind': 'device', 'contextId': 'user-1'},
+      );
+      final client = autoDispose(createClient());
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+    });
+
+    test('a launch with the same context kind and id adopts the kept values, '
+        'and its payload is tagged with that kind', () async {
+      cachingProvider.stored = entry(
+        contextTag: const {'contextKind': 'device', 'contextId': 'tablet-1'},
+      );
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'tablet-1', kind: 'device'),
+      );
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.cached,
+      );
+
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+
+      final written = jsonDecode(cachingProvider.writes.single) as Map;
+      expect(written['contextTag'], {
+        'contextKind': 'device',
+        'contextId': 'tablet-1',
+      });
+    });
+
+    test('name, traits and anonymous take no part in the match', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+
+      unawaited(
+        client.initialize(
+          const ConfigDirectorContext(
+            id: 'user-1',
+            name: 'Someone else',
+            traits: {'plan': 'enterprise'},
+            anonymous: true,
+          ),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.cached,
+      );
+    });
+
+    test('a context without an id matches on the stored instance ID', () async {
+      instanceIdStorage.record = record(createdAt: 1760000000000);
+      cachingProvider.stored = entry(
+        contextTag: {
+          'contextKind': 'user',
+          'anonymousInstanceId': _storedInstanceId,
+        },
+      );
+      final client = autoDispose(createClient());
+
+      unawaited(client.initialize());
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.cached,
+      );
+    });
+
+    test(
+      'a context without an id does not match another instance ID',
+      () async {
+        instanceIdStorage.record = record(createdAt: 1760000000000);
+        cachingProvider.stored = entry(
+          contextTag: const {
+            'contextKind': 'user',
+            'anonymousInstanceId': '22222222-2222-4222-8222-222222222222',
+          },
+        );
+        final client = autoDispose(createClient());
+
+        unawaited(client.initialize());
+        await pumpEventQueue();
+
+        expect(
+          client.evaluate('dark-mode', false).reason,
+          EvaluationReason.clientNotReady,
+        );
+      },
+    );
+
+    test('a payload for a context without an id is tagged with the instance '
+        'ID', () async {
+      instanceIdStorage.record = record(createdAt: 1760000000000);
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize();
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+
+      final written = jsonDecode(cachingProvider.writes.single) as Map;
+      expect(written['contextTag'], {
+        'contextKind': 'user',
+        'anonymousInstanceId': _storedInstanceId,
+      });
+    });
+
+    test('a first launch serves in-code default values until the first '
+        'payload, which is then kept', () async {
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+      final loaded = <CachedValuesLoadedEvent>[];
+      client.onCachedValuesLoaded.listen(loaded.add);
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+      expect(loaded, isEmpty);
+      expect(cachingProvider.writes, isEmpty);
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+          },
+        ),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      expect(loaded, isEmpty);
+      expect(cachingProvider.writes, hasLength(1));
+      expect(logger.warnings, isEmpty);
+    });
+
+    test(
+      'a key absent from the kept values reports the client not ready, '
+      'and a type mismatch against a kept value is a type mismatch',
+      () async {
+        cachingProvider.stored = entry();
+        final client = autoDispose(createClient());
+
+        unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+        await pumpEventQueue();
+
+        final absent = client.evaluate('greeting', 'hi');
+        expect(absent.reason, EvaluationReason.clientNotReady);
+        expect(absent.isDefaultValue, isTrue);
+        final mismatch = client.evaluate('dark-mode', 0);
+        expect(mismatch.reason, EvaluationReason.typeMismatch);
+        expect(mismatch.isDefaultValue, isTrue);
+      },
+    );
+
+    test('watch emits the kept value once it is loaded', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+      final values = <bool>[];
+      client.watch('dark-mode', false).listen(values.add);
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      expect(values, [false, true]);
+    });
+
+    test(
+      'an entry over the size limit is removed, with one warning per run',
+      () async {
+        cachingProvider.limit = 100;
+        final client = autoDispose(
+          createClient(
+            connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+          ),
+        );
+
+        final initialization = client.initialize(
+          const ConfigDirectorContext(id: 'user-1'),
+        );
+        await pumpEventQueue();
+        transport.emitConfigSet(
+          configSet(
+            configs: {
+              'dark-mode': configState('dark-mode', ConfigType.boolean, 'true'),
+            },
+          ),
+        );
+        await initialization;
+        await pumpEventQueue();
+        transport.emitConfigSet(
+          configSet(
+            configs: {
+              'dark-mode': configState(
+                'dark-mode',
+                ConfigType.boolean,
+                'false',
+              ),
+            },
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(cachingProvider.writes, isEmpty);
+        expect(cachingProvider.removeCount, 2);
+        expect(logger.warnings, hasLength(1));
+        expect(client.isReady, isTrue);
+        expect(client.getValue('dark-mode', true), isFalse);
+      },
+    );
+
+    test(
+      'caching turned off reads and writes nothing, even with a provider',
+      () async {
+        cachingProvider.stored = entry();
+        final client = autoDispose(
+          createClient(
+            connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+            caching: CachingOptions(enabled: false, provider: cachingProvider),
+          ),
+        );
+
+        final initialization = client.initialize(
+          const ConfigDirectorContext(id: 'user-1'),
+        );
+        await pumpEventQueue();
+
+        expect(
+          client.evaluate('dark-mode', false).reason,
+          EvaluationReason.clientNotReady,
+        );
+
+        transport.emitConfigSet(configSet(configs: const {}));
+        await initialization;
+        await pumpEventQueue();
+
+        expect(cachingProvider.readCount, 0);
+        expect(cachingProvider.writes, isEmpty);
+        expect(cachingProvider.removeCount, 0);
+        expect(logger.warnings, isEmpty);
+      },
+    );
+
+    test('a custom provider replaces shared preferences and its size limit '
+        'is honored', () async {
+      SharedPreferences.setMockInitialValues({});
+      cachingProvider.limit = 2 * 1024 * 1024;
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'novel': configState('novel', ConfigType.string, 'x' * 300000),
+          },
+        ),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      expect(cachingProvider.writes, hasLength(1));
+      expect(cachingProvider.removeCount, 0);
+      expect(logger.warnings, isEmpty);
+      expect((await SharedPreferences.getInstance()).getKeys(), isEmpty);
+    });
+
+    test('offline mode ignores the caching option', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(
+            mode: ConnectionMode.offline,
+            values: {'dark-mode': false},
+          ),
+        ),
+      );
+
+      await client.initialize(const ConfigDirectorContext(id: 'user-1'));
+      await pumpEventQueue();
+
+      expect(client.getValue('dark-mode', true), isFalse);
+      expect(cachingProvider.readCount, 0);
+      expect(cachingProvider.writes, isEmpty);
+    });
+
+    test('a provider that fails to read is logged once, leaves the entry, '
+        'and never stops the client', () async {
+      cachingProvider.stored = entry();
+      cachingProvider.readFailure = StateError('store unavailable');
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+      expect(cachingProvider.removeCount, 0);
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'false'),
+          },
+        ),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      expect(client.isReady, isTrue);
+      expect(client.getValue('dark-mode', true), isFalse);
+      expect(cachingProvider.writes, hasLength(1));
+      expect(logger.warnings, hasLength(1));
+    });
+
+    test('a provider that fails to write is logged once and never stops the '
+        'client', () async {
+      cachingProvider.stored = entry();
+      cachingProvider.writeFailure = StateError('store full');
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await pumpEventQueue();
+
+      expect(client.isReady, isTrue);
+      expect(cachingProvider.writes, hasLength(2));
+      expect(cachingProvider.stored, entry());
+      expect(logger.warnings, hasLength(1));
+    });
+
+    test('a provider that fails to remove is logged once and never stops the '
+        'client', () async {
+      cachingProvider.limit = 100;
+      cachingProvider.removeFailure = StateError('store locked');
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await pumpEventQueue();
+
+      expect(client.isReady, isTrue);
+      expect(cachingProvider.removeCount, 2);
+      expect(logger.warnings, hasLength(2));
+    });
+
+    test(
+      'a context update that cannot connect keeps serving the kept values',
+      () async {
+        cachingProvider.stored = entry();
+        final client = autoDispose(createClient());
+
+        unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+        await pumpEventQueue();
+        final update = client.updateContext(
+          const ConfigDirectorContext(id: 'user-2'),
+        );
+        await pumpEventQueue();
+
+        expect(
+          client.evaluate('dark-mode', false).reason,
+          EvaluationReason.cached,
+        );
+
+        await update;
+
+        final evaluation = client.evaluate('dark-mode', false);
+        expect(evaluation.value, isTrue);
+        expect(evaluation.reason, EvaluationReason.cached);
+        expect(client.isReady, isFalse);
+      },
+    );
+
+    test('an entry with an unknown format version is removed, with one '
+        'warning', () async {
+      cachingProvider.stored = entry(formatVersion: 2);
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+      final loaded = <CachedValuesLoadedEvent>[];
+      client.onCachedValuesLoaded.listen(loaded.add);
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+      expect(loaded, isEmpty);
+      expect(cachingProvider.removeCount, 1);
+      expect(cachingProvider.stored, isNull);
+      expect(logger.warnings, hasLength(1));
+    });
+
+    test('an entry kept for another client SDK key is removed', () async {
+      cachingProvider.stored = entry(clientSdkKey: 'another-client-sdk-key');
+      final client = autoDispose(createClient());
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+      expect(cachingProvider.removeCount, 1);
+    });
+
+    test('an entry that is not JSON is removed', () async {
+      cachingProvider.stored = 'not json';
+      final client = autoDispose(createClient());
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+      expect(cachingProvider.removeCount, 1);
+    });
+
+    test('a read that lands after the live payload is discarded', () async {
+      cachingProvider.stored = entry();
+      cachingProvider.heldRead = Completer<void>();
+      final client = autoDispose(createClient());
+      final loaded = <CachedValuesLoadedEvent>[];
+      client.onCachedValuesLoaded.listen(loaded.add);
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'false'),
+          },
+        ),
+      );
+      await initialization;
+      cachingProvider.heldRead!.complete();
+      await pumpEventQueue();
+
+      expect(loaded, isEmpty);
+      final evaluation = client.evaluate('dark-mode', true);
+      expect(evaluation.value, isFalse);
+      expect(evaluation.reason, EvaluationReason.foundMatch);
+    });
+
+    test('a read that lands after dispose serves nothing', () async {
+      cachingProvider.stored = entry();
+      cachingProvider.heldRead = Completer<void>();
+      final client = createClient();
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+      client.dispose();
+      cachingProvider.heldRead!.complete();
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+    });
+
+    test('connecting never waits for the read', () async {
+      cachingProvider.stored = entry();
+      cachingProvider.heldRead = Completer<void>();
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+
+      expect(transport.connectCalls, hasLength(1));
+
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+
+      expect(client.isReady, isTrue);
+    });
+
+    test('the instance ID storage is read and written as before', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+
+      expect(instanceIdStorage.readCount, 1);
+      expect(
+        jsonDecode(instanceIdStorage.record!),
+        containsPair('id', transportOptions.single.clientSession.instanceId),
+      );
+      expect(cachingProvider.writes, hasLength(1));
+    });
+
+    test('a relaunch polls without a watermark', () async {
+      cachingProvider.stored = entry();
+      final loaded = Completer<void>();
+      final requestBodies = <Map<String, Object?>>[];
+      final client = autoDispose(
+        DefaultConfigDirectorClient(
+          'a-client-sdk-key',
+          options: ConfigDirectorClientOptions(
+            logger: logger,
+            connection: const ConnectionOptions(
+              mode: ConnectionMode.polling,
+              timeout: Duration(milliseconds: 50),
+            ),
+            caching: CachingOptions(provider: cachingProvider),
+          ),
+          httpClient: MockClient((request) async {
+            requestBodies.add(jsonDecode(request.body) as Map<String, Object?>);
+            return http.Response(
+              jsonEncode({
+                'environmentId': 'env-id',
+                'projectId': 'project-id',
+                'kind': 'full',
+                'timestamp': '2026-10-23T10:00:00Z',
+                'configs': {},
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+          telemetryClient: telemetry,
+          transportFactory: (options) =>
+              _ConnectAfter(loaded.future, PollingTransport(options)),
+          lifecycleWatcher: lifecycleWatcher,
+          appInfoResolver: () async => const ConfigDirectorMetaContext(),
+          instanceIdStorage: instanceIdStorage,
+        ),
+      );
+      client.onCachedValuesLoaded.listen((_) => loaded.complete());
+
+      await client.initialize(const ConfigDirectorContext(id: 'user-1'));
+
+      expect(loaded.isCompleted, isTrue);
+      expect(client.isReady, isTrue);
+      expect(requestBodies.single, isNot(contains('lastUpdateTimestamp')));
+    });
+
+    test('shared preferences keep the entry under a key derived from the '
+        'client SDK key by default', () async {
+      SharedPreferences.setMockInitialValues({
+        'configdirector-sdk:cached-values:'
+                'a436715ed46b2aacdf095eb10a8ed3d532c299456a62595160ebd77bf5be76de':
+            entry(),
+      });
+      final client = autoDispose(createClient(caching: const CachingOptions()));
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.cached,
+      );
+
+      transport.emitConfigSet(
+        configSet(
+          configs: {
+            'dark-mode': configState('dark-mode', ConfigType.boolean, 'false'),
+          },
+        ),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      final preferences = await SharedPreferences.getInstance();
+      final kept =
+          jsonDecode(
+                preferences.getString(
+                  'configdirector-sdk:cached-values:'
+                  'a436715ed46b2aacdf095eb10a8ed3d532c299456a62595160ebd77bf5be76de',
+                )!,
+              )
+              as Map;
+      expect(
+        (kept['configs'] as Map)['dark-mode'],
+        containsPair('value', 'false'),
+      );
+      expect(preferences.getKeys(), hasLength(1));
+      expect(cachingProvider.readCount, 0);
+    });
+  });
+}
+
+final class _ConnectAfter implements Transport {
+  _ConnectAfter(this._ready, this._transport);
+
+  final Future<void> _ready;
+  final Transport _transport;
+
+  @override
+  Stream<ConfigSet> get configSets => _transport.configSets;
+
+  @override
+  Future<ConnectOutcome> connect(
+    ConfigDirectorContext context,
+    Duration timeout,
+    ClientConnectAction action,
+  ) async {
+    await _ready;
+    return _transport.connect(context, timeout, action);
+  }
+
+  @override
+  void close() => _transport.close();
+
+  @override
+  void dispose() => _transport.dispose();
 }
 
 /// Registers [client] for disposal at the end of the test and returns it.

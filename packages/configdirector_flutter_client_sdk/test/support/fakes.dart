@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:configdirector_flutter_client_sdk/src/client/client_events.dart';
+import 'package:configdirector_flutter_client_sdk/src/client/client_options.dart';
 import 'package:configdirector_flutter_client_sdk/src/client_session.dart';
 import 'package:configdirector_flutter_client_sdk/src/lifecycle.dart';
 import 'package:configdirector_flutter_client_sdk/src/logger.dart';
@@ -249,4 +250,51 @@ final class FakeInstanceIdStorage implements InstanceIdStorage {
     this.record = record;
     return true;
   }
+}
+
+final class FakeCachingProvider implements CachingProvider {
+  String? stored;
+  int limit = 256 * 1024;
+  Object? readFailure;
+  Object? writeFailure;
+  Object? removeFailure;
+  int readCount = 0;
+  int removeCount = 0;
+  final List<String> writes = [];
+
+  Completer<void>? heldRead;
+
+  @override
+  Future<String?> read() async {
+    readCount += 1;
+    await heldRead?.future;
+    final failure = readFailure;
+    if (failure != null) {
+      throw failure;
+    }
+    return stored;
+  }
+
+  @override
+  Future<void> write(String value) async {
+    writes.add(value);
+    final failure = writeFailure;
+    if (failure != null) {
+      throw failure;
+    }
+    stored = value;
+  }
+
+  @override
+  Future<void> remove() async {
+    removeCount += 1;
+    final failure = removeFailure;
+    if (failure != null) {
+      throw failure;
+    }
+    stored = null;
+  }
+
+  @override
+  int sizeLimit() => limit;
 }
