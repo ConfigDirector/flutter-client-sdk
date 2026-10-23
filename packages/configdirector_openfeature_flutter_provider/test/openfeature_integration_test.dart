@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:configdirector_flutter_client_sdk/testing.dart';
 import 'package:configdirector_openfeature_flutter_provider/src/config_director_provider.dart';
@@ -145,6 +147,43 @@ void main() {
       expect(api.getClient().getBooleanValue('dark-mode', false), isTrue);
     },
   );
+
+  test('serves the values kept on the device with the stale status when '
+      'registration fails', () async {
+    configDirectorClient.connectionSucceeds = false;
+    configDirectorClient.connectionGate = Completer<void>();
+    final stale = record(ProviderEventType.stale);
+
+    final registration = expectLater(
+      api.setProviderAndWait(provider),
+      throwsA(isA<OpenFeatureException>()),
+    );
+    configDirectorClient.loadCachedValues();
+    await deliverClientEvents();
+    configDirectorClient.connectionGate!.complete();
+    await registration;
+
+    expect(api.getClient().providerStatus, ProviderStatus.error);
+
+    await deliverClientEvents();
+
+    final client = api.getClient();
+    expect(client.providerStatus, ProviderStatus.stale);
+    expect(stale, isNotEmpty);
+    final details = client.getBooleanDetails('dark-mode', false);
+    expect(details.value, isTrue);
+    expect(details.reason, 'CACHED');
+    expect(details.variant, 'value-id-dark-mode');
+
+    configDirectorClient.becomeReady(ClientConnectAction.initialization);
+    await deliverClientEvents();
+
+    expect(client.providerStatus, ProviderStatus.ready);
+    expect(
+      client.getBooleanDetails('dark-mode', false).reason,
+      'TARGETING_MATCH',
+    );
+  });
 
   test('reconciles a context change', () async {
     await api.setProviderAndWait(provider);

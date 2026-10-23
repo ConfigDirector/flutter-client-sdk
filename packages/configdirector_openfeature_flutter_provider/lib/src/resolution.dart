@@ -10,6 +10,11 @@ ResolutionDetails<T> resolutionOf<T extends Object>(
     variant: evaluation.valueId,
     reason: 'TARGETING_MATCH',
   ),
+  EvaluationReason.cached => ResolutionDetails(
+    value: value,
+    variant: evaluation.valueId,
+    reason: 'CACHED',
+  ),
   EvaluationReason.valueMissing => ResolutionDetails(
     value: value,
     reason: 'DEFAULT',

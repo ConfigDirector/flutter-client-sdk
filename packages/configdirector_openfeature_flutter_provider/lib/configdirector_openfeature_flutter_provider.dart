@@ -16,6 +16,8 @@ library;
 
 export 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart'
     show
+        CachingOptions,
+        CachingProvider,
         ConfigDirectorClient,
         ConfigDirectorClientOptions,
         ConfigDirectorLogLevel,

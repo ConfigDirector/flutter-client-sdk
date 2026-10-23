@@ -9,7 +9,9 @@ void main() {
         key: 'a-key',
         value: 'value',
         valueId: valueId,
-        isDefaultValue: reason != EvaluationReason.foundMatch,
+        isDefaultValue:
+            reason != EvaluationReason.foundMatch &&
+            reason != EvaluationReason.cached,
         reason: reason,
       );
 
@@ -25,6 +27,22 @@ void main() {
     expect(details.errorCode, isNull);
     expect(details.errorMessage, isNull);
   });
+
+  test(
+    'a value kept on the device is cached, with the value id as variant',
+    () {
+      final details = resolutionOf(
+        evaluation(EvaluationReason.cached, valueId: 'value-id'),
+        'value',
+      );
+
+      expect(details.value, 'value');
+      expect(details.variant, 'value-id');
+      expect(details.reason, 'CACHED');
+      expect(details.errorCode, isNull);
+      expect(details.errorMessage, isNull);
+    },
+  );
 
   test('a config without a value resolves to the default', () {
     final details = resolutionOf(

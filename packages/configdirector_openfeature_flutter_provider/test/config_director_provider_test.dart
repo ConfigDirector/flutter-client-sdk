@@ -84,6 +84,110 @@ void main() {
     });
   });
 
+  group('values kept on the device', () {
+    test('reports stale when the client loads them', () async {
+      client.connectionGate = Completer<void>();
+      final initialization = provider.initialize(EvaluationContext.empty);
+      client.loadCachedValues();
+      await deliverClientEvents();
+
+      expect(eventTypes(), [ProviderEventType.stale]);
+
+      client.connectionGate!.complete();
+      await initialization;
+
+      expect(eventTypes(), [ProviderEventType.stale, ProviderEventType.ready]);
+    });
+
+    test('reports an error, then stale again, when the client does not '
+        'become ready while serving them', () async {
+      client.connectionSucceeds = false;
+      client.connectionGate = Completer<void>();
+      final initialization = provider.initialize(EvaluationContext.empty);
+      client.loadCachedValues();
+      await deliverClientEvents();
+      client.connectionGate!.complete();
+      await initialization;
+
+      expect(eventTypes(), [ProviderEventType.stale, ProviderEventType.error]);
+
+      await deliverClientEvents();
+
+      expect(eventTypes(), [
+        ProviderEventType.stale,
+        ProviderEventType.error,
+        ProviderEventType.stale,
+      ]);
+    });
+
+    test('reports ready once live values replace them', () async {
+      client.connectionSucceeds = false;
+      client.connectionGate = Completer<void>();
+      final initialization = provider.initialize(EvaluationContext.empty);
+      client.loadCachedValues();
+      await deliverClientEvents();
+      client.connectionGate!.complete();
+      await initialization;
+      await deliverClientEvents();
+      events.clear();
+
+      client.becomeReady(ClientConnectAction.initialization);
+      await deliverClientEvents();
+
+      expect(eventTypes(), [ProviderEventType.ready]);
+    });
+
+    test('reports stale again after a context change that does not become '
+        'ready while serving them', () async {
+      client.connectionSucceeds = false;
+      client.connectionGate = Completer<void>();
+      final initialization = provider.initialize(EvaluationContext.empty);
+      client.loadCachedValues();
+      await deliverClientEvents();
+      client.connectionGate!.complete();
+      await initialization;
+      await deliverClientEvents();
+      events.clear();
+
+      await provider.onContextChanged(
+        EvaluationContext.empty,
+        EvaluationContext(targetingKey: 'new'),
+      );
+      await deliverClientEvents();
+
+      expect(eventTypes(), [
+        ProviderEventType.reconciling,
+        ProviderEventType.error,
+        ProviderEventType.stale,
+      ]);
+    });
+
+    test(
+      'does not report stale after an error once live values arrived',
+      () async {
+        client.connectionGate = Completer<void>();
+        final initialization = provider.initialize(EvaluationContext.empty);
+        client.loadCachedValues();
+        await deliverClientEvents();
+        client.connectionGate!.complete();
+        await initialization;
+        events.clear();
+
+        client.connectionSucceeds = false;
+        await provider.onContextChanged(
+          EvaluationContext.empty,
+          EvaluationContext(targetingKey: 'new'),
+        );
+        await deliverClientEvents();
+
+        expect(eventTypes(), [
+          ProviderEventType.reconciling,
+          ProviderEventType.error,
+        ]);
+      },
+    );
+  });
+
   group('onContextChanged', () {
     setUp(() async {
       await provider.initialize(EvaluationContext.empty);

@@ -5,6 +5,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.6] - 2026-10-23
+
+### Added
+
+- The provider serves the values the underlying client kept on the device from its last payload on
+  the next launch of the same context, until live values arrive, so an app opened without a network
+  resolves flags to the values ConfigDirector last sent instead of the default values passed to the
+  OpenFeature client. Such a flag resolves with the reason `CACHED` and the value id as its variant.
+  The provider reports `stale` when the kept values are loaded; `setProviderAndWait` still throws
+  an `OpenFeatureException` when the connection times out, and the provider then reports `error`
+  followed by `stale` again while it serves the kept values, and `ready` once live values arrive. A
+  context change that cannot connect reports `reconciling`, `error` and `stale`. The `caching`
+  field of `ConfigDirectorClientOptions` turns this off or replaces the store; `CachingOptions` and
+  `CachingProvider` are exported from the provider. Requires version 1.7.0 of
+  `configdirector_flutter_client_sdk`, which adds the values kept on the device.
+
 ## [0.1.0-beta.5] - 2026-10-15
 
 ### Added

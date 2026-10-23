@@ -19,8 +19,11 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
       StreamController<ClientReadyEvent>.broadcast();
   final StreamController<ConfigsUpdatedEvent> _configsUpdated =
       StreamController<ConfigsUpdatedEvent>.broadcast();
+  final StreamController<CachedValuesLoadedEvent> _cachedValuesLoaded =
+      StreamController<CachedValuesLoadedEvent>.broadcast();
 
   bool _ready = false;
+  bool _servingCachedValues = false;
   ConfigDirectorContext? _context;
 
   @override
@@ -34,6 +37,10 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
 
   @override
   Stream<ConfigsUpdatedEvent> get onConfigsUpdated => _configsUpdated.stream;
+
+  @override
+  Stream<CachedValuesLoadedEvent> get onCachedValuesLoaded =>
+      _cachedValuesLoaded.stream;
 
   @override
   Future<void> initialize([ConfigDirectorContext? context]) {
@@ -74,14 +81,22 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
             ? EvaluationReason.configStateMissing
             : EvaluationReason.clientNotReady,
       ),
-      T() => (value, 'value-id-$configKey', EvaluationReason.foundMatch),
+      T() => (
+        value,
+        'value-id-$configKey',
+        _servingCachedValues
+            ? EvaluationReason.cached
+            : EvaluationReason.foundMatch,
+      ),
       _ => (defaultValue, null, EvaluationReason.typeMismatch),
     };
     return ConfigEvaluation(
       key: configKey,
       value: result,
       valueId: valueId,
-      isDefaultValue: reason != EvaluationReason.foundMatch,
+      isDefaultValue:
+          reason != EvaluationReason.foundMatch &&
+          reason != EvaluationReason.cached,
       reason: reason,
       context: _context,
     );
@@ -97,11 +112,18 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
     }
     unawaited(_clientReady.close());
     unawaited(_configsUpdated.close());
+    unawaited(_cachedValuesLoaded.close());
   }
 
   void becomeReady(ClientConnectAction action) {
     _ready = true;
+    _servingCachedValues = false;
     _clientReady.add(ClientReadyEvent(action));
+  }
+
+  void loadCachedValues() {
+    _servingCachedValues = true;
+    _cachedValuesLoaded.add(const CachedValuesLoadedEvent());
   }
 
   void receiveConfigs(

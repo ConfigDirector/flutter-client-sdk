@@ -53,8 +53,10 @@ import 'resolution.dart';
 /// ## Resolution details
 ///
 /// A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and
-/// the served value's id as its variant. One the config has no value for
-/// resolves to the default with the reason `DEFAULT`. Everything else is an
+/// the served value's id as its variant; one served from the values kept on
+/// the device, before live values arrive, resolves the same way with the
+/// reason `CACHED`. One the config has no value for resolves to the default
+/// with the reason `DEFAULT`. Everything else is an
 /// error carrying the default: `flagNotFound` for an unknown key,
 /// `providerNotReady` before config state has arrived, and `typeMismatch` for
 /// a value that cannot be read as the requested type.
@@ -67,6 +69,14 @@ import 'resolution.dart';
 /// an error. The underlying client keeps trying to connect, and the provider
 /// reports ready as soon as it succeeds. Until then flags resolve to the config
 /// state received earlier, or to their default values when there is none.
+///
+/// The underlying client keeps the last values it received on the device and
+/// serves them on the next launch of the same context until live values
+/// arrive; see [CachingOptions]. The provider reports stale while it serves
+/// them: from the moment they are loaded, and again right after the error it
+/// reports when registration or a context change times out, once the
+/// OpenFeature SDK has recorded that error, until live values arrive and it
+/// reports ready.
 ///
 /// A configuration-changed event is emitted every time config state arrives,
 /// carrying the keys of the configs in the update followed by the keys of
@@ -105,6 +115,9 @@ final class ConfigDirectorProvider
     _configsUpdatedSubscription = client.onConfigsUpdated.listen(
       _handleConfigsUpdated,
     );
+    _cachedValuesLoadedSubscription = client.onCachedValuesLoaded.listen(
+      _handleCachedValuesLoaded,
+    );
   }
 
   final ConfigDirectorClient _client;
@@ -114,8 +127,11 @@ final class ConfigDirectorProvider
   late final StreamSubscription<ClientReadyEvent> _clientReadySubscription;
   late final StreamSubscription<ConfigsUpdatedEvent>
   _configsUpdatedSubscription;
+  late final StreamSubscription<CachedValuesLoadedEvent>
+  _cachedValuesLoadedSubscription;
 
   bool _awaitingRecovery = false;
+  bool _servingCachedValues = false;
 
   @override
   ProviderMetadata get metadata =>
@@ -157,6 +173,7 @@ final class ConfigDirectorProvider
   Future<void> shutdown() async {
     await _clientReadySubscription.cancel();
     await _configsUpdatedSubscription.cancel();
+    await _cachedValuesLoadedSubscription.cancel();
     _client.dispose();
     await _events.close();
   }
@@ -221,9 +238,28 @@ final class ConfigDirectorProvider
         message: failureMessage,
       ),
     );
+    Timer.run(_reportStatusOnceTheOutcomeIsRecorded);
+  }
+
+  void _reportStatusOnceTheOutcomeIsRecorded() {
+    switch (_statusReportFor(
+      servingCachedValues: _servingCachedValues,
+      awaitingRecovery: _awaitingRecovery,
+    )) {
+      case _StatusReport.stale:
+        _emit(ProviderEvent(type: ProviderEventType.stale));
+      case _StatusReport.asRecorded:
+        return;
+    }
+  }
+
+  void _handleCachedValuesLoaded(CachedValuesLoadedEvent event) {
+    _servingCachedValues = true;
+    _emit(ProviderEvent(type: ProviderEventType.stale));
   }
 
   void _handleClientReady(ClientReadyEvent event) {
+    _servingCachedValues = false;
     if (!_awaitingRecovery) {
       return;
     }
@@ -252,3 +288,12 @@ final class ConfigDirectorProvider
 
 ConfigDirectorProvider providerForClient(ConfigDirectorClient client) =>
     ConfigDirectorProvider._(client);
+
+enum _StatusReport { stale, asRecorded }
+
+_StatusReport _statusReportFor({
+  required bool servingCachedValues,
+  required bool awaitingRecovery,
+}) => servingCachedValues && awaitingRecovery
+    ? _StatusReport.stale
+    : _StatusReport.asRecorded;
