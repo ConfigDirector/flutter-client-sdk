@@ -9,6 +9,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `ConnectionMode.offline` runs the provider without connecting to ConfigDirector, for example in
+  a suite of UI tests that pins every flag to a known value. `ConnectionOptions.values` takes the
+  values to serve, one per config key, and every evaluation context receives the same value with
+  the reason `TARGETING_MATCH`; a flag without a value there resolves to its default with the
+  `flagNotFound` error code. Registration completes at once with the provider ready, nothing is
+  sent to ConfigDirector, and nothing is kept on the device. When the values cannot be loaded, for
+  example a `null` value, `setProviderAndWait` throws the `ConfigDirectorInitializationException`
+  the Flutter SDK throws, which the provider now exports, and the provider is not registered. See
+  version 1.7.0 of `configdirector_flutter_client_sdk` for the values accepted.
 - The provider serves the values the underlying client kept on the device from its last payload on
   the next launch of the same context, until live values arrive, so an app opened without a network
   resolves flags to the values ConfigDirector last sent instead of the default values passed to the
@@ -20,6 +29,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   field of `ConfigDirectorClientOptions` turns this off or replaces the store; `CachingOptions` and
   `CachingProvider` are exported from the provider. Requires version 1.7.0 of
   `configdirector_flutter_client_sdk`, which adds the values kept on the device.
+
+### Changed
+
+- `ConfigDirectorProvider` no longer requires `clientSdkKey`: it can be left out, or be empty, in
+  offline mode. In `streaming` and `polling` mode a missing or blank key still throws a
+  `ConfigDirectorValidationException` when the provider is created, so leaving it out there is now
+  caught at that point instead of by the compiler.
 
 ## [0.1.0-beta.5] - 2026-10-15
 

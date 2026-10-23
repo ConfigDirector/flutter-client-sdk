@@ -82,6 +82,17 @@ import 'resolution.dart';
 /// carrying the keys of the configs in the update followed by the keys of
 /// configs a full update removed.
 ///
+/// ## Offline mode
+///
+/// With [ConnectionMode.offline] the provider never connects and resolves
+/// every flag from [ConnectionOptions.values], the same value for every
+/// context, with the reason `TARGETING_MATCH`; a config without a value there
+/// resolves to the default with the error code `flagNotFound`. Registration
+/// completes at once with the provider ready. When the values cannot be
+/// loaded, `setProviderAndWait` throws the
+/// [ConfigDirectorInitializationException] the underlying client throws, and
+/// the provider is not registered.
+///
 /// An instance serves a single registration. After OpenFeature shuts it down,
 /// create a new one.
 final class ConfigDirectorProvider
@@ -95,12 +106,27 @@ final class ConfigDirectorProvider
   /// ConfigDirector dashboard.
   ///
   /// [options] configures the underlying ConfigDirector client: application
-  /// metadata, the connection mode, polling interval, and timeout, and
-  /// logging.
+  /// metadata, the connection mode, polling interval, and timeout, the values
+  /// kept on the device, and logging.
   ///
-  /// Throws a [ConfigDirectorValidationException] if [clientSdkKey] is blank.
+  /// [clientSdkKey] may be left out in [ConnectionMode.offline], which never
+  /// connects and serves the values given in [ConnectionOptions.values]:
+  ///
+  /// ```dart
+  /// final provider = ConfigDirectorProvider(
+  ///   options: const ConfigDirectorClientOptions(
+  ///     connection: ConnectionOptions(
+  ///       mode: ConnectionMode.offline,
+  ///       values: {'new-checkout': true},
+  ///     ),
+  ///   ),
+  /// );
+  /// ```
+  ///
+  /// In every other mode, a missing or blank [clientSdkKey] throws a
+  /// [ConfigDirectorValidationException].
   ConfigDirectorProvider({
-    required String clientSdkKey,
+    String? clientSdkKey,
     ConfigDirectorClientOptions? options,
   }) : this._(
          createWrapperClient(

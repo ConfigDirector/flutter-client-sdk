@@ -20,6 +20,7 @@ export 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_
         CachingProvider,
         ConfigDirectorClient,
         ConfigDirectorClientOptions,
+        ConfigDirectorInitializationException,
         ConfigDirectorLogLevel,
         ConfigDirectorLogger,
         ConfigDirectorMetaContext,
