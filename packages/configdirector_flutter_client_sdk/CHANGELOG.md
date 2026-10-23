@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-23
+
 ### Added
 
 - The client keeps the last values it received from ConfigDirector on the device, through
