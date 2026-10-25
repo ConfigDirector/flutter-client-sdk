@@ -40,10 +40,12 @@ void main() {
 
   TelemetryEventCollector createCollector({
     SdkMetaContext Function() currentMetaContext = _currentMetaContext,
+    Future<String>? instanceId,
     int eventQueueLimit = 1000,
   }) => TelemetryEventCollector(
     reporter: reporter,
     currentMetaContext: currentMetaContext,
+    instanceId: instanceId ?? Future.value('instance-id'),
     logger: logger,
     flushInterval: _flushInterval,
     initialFlushDelay: _initialFlushDelay,
@@ -89,6 +91,27 @@ void main() {
       expect(reporter.requests[0].metaContext.metadata, isNull);
       expect(reporter.requests[1].metaContext.metadata?.appName, 'Sample App');
       expect(reporter.requests[1].metaContext.metadata?.appVersion, '4.5.6');
+    });
+  });
+
+  test('waits for the instance ID before sending a report that comes due '
+      'earlier, then sends it with the report', () {
+    fakeAsync((async) {
+      final instanceId = Completer<String>();
+      createCollector(
+        instanceId: instanceId.future,
+      ).evaluatedConfig(evaluation());
+
+      async.elapse(_initialFlushDelay);
+      expect(reporter.requests, isEmpty);
+
+      instanceId.complete('3f2b8c1e-7a4d-4e9b-8c6f-1d2e3f4a5b6c');
+      async.flushMicrotasks();
+      expect(
+        reporter.requests.single.instanceId,
+        '3f2b8c1e-7a4d-4e9b-8c6f-1d2e3f4a5b6c',
+      );
+      expect(reportedEvents(0), [evaluation()]);
     });
   });
 

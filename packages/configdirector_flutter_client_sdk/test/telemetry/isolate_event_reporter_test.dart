@@ -26,6 +26,7 @@ EventReportRequest requestOf({
       const [],
 }) => EventReportRequest(
   metaContext: metaContext,
+  instanceId: 'instance-id',
   context: context,
   invalidContextSubmissions: invalidContextSubmissions,
   snapshot: EventQueueSnapshot(

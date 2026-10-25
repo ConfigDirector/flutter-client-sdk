@@ -5,6 +5,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The client now sends its instance ID with telemetry, the same ID it connects with, so
+  ConfigDirector can tell which app install, or on the web which browser, the telemetry came from.
+
 ## [1.7.0] - 2026-10-23
 
 ### Added

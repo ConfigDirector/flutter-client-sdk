@@ -11,12 +11,18 @@ import 'event_aggregator.dart';
 import 'event_queue.dart';
 import 'telemetry_events.dart';
 
+bool nothingToReport(
+  EventQueueSnapshot<EvaluatedConfigEvent> snapshot,
+  List<AggregatedEvent<InvalidContextSubmission>> invalidContextSubmissions,
+) => snapshot.isEmpty && invalidContextSubmissions.isEmpty;
+
 @immutable
 final class EventReportRequest {
   const EventReportRequest({
     required this.snapshot,
     required this.invalidContextSubmissions,
     required this.metaContext,
+    required this.instanceId,
     this.context,
   });
 
@@ -27,9 +33,11 @@ final class EventReportRequest {
 
   final SdkMetaContext metaContext;
 
+  final String instanceId;
+
   final ConfigDirectorContext? context;
 
-  bool get isEmpty => snapshot.isEmpty && invalidContextSubmissions.isEmpty;
+  bool get isEmpty => nothingToReport(snapshot, invalidContextSubmissions);
 }
 
 @immutable
@@ -98,6 +106,7 @@ final class HttpEventReporter implements EventReporter {
     final response = await _send(
       jsonEncode({
         'clientSdkKey': _sdkKey,
+        'instanceId': request.instanceId,
         'metaContext': request.metaContext.toJson(),
         if (request.context != null) 'context': request.context!.toJson(),
         'discreteEvents': const <String, Object?>{},

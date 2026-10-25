@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:configdirector_flutter_client_sdk/src/client/default_config_director_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/client_session.dart';
 import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
 import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
@@ -50,6 +51,8 @@ void main() {
 
   DefaultConfigDirectorClient createClient({
     required AppInfoResolver appInfoResolver,
+    InstanceIdStorage? instanceIdStorage,
+    ClientSession? clientSession,
   }) {
     final client = DefaultConfigDirectorClient(
       'a-client-sdk-key',
@@ -64,6 +67,8 @@ void main() {
       lifecycleWatcher: lifecycleWatcher,
       userAgentResolver: () => 'integration-tests',
       appInfoResolver: appInfoResolver,
+      instanceIdStorage: instanceIdStorage,
+      clientSession: clientSession,
     );
     addTearDown(client.dispose);
     return client;
@@ -182,5 +187,50 @@ void main() {
 
     expect(report['metaContext'], containsPair('appName', 'Sample App'));
     expect(report['metaContext'], containsPair('appVersion', '4.5.6'));
+  });
+
+  test('reports the instance ID read from storage', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+      instanceIdStorage: FakeInstanceIdStorage()
+        ..record = jsonEncode({
+          'v': 1,
+          'id': '3f2b8c1e-7a4d-4e9b-8c6f-1d2e3f4a5b6c',
+          'createdAt': DateTime.now().millisecondsSinceEpoch - 60000,
+        }),
+    );
+
+    final initialization = client.initialize();
+    transport.emitConfigSet(configSet(configs: const {}));
+    await initialization;
+
+    client.getValue('dark-mode', false);
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    final report = await reported.future.timeout(const Duration(seconds: 10));
+
+    expect(report['instanceId'], '3f2b8c1e-7a4d-4e9b-8c6f-1d2e3f4a5b6c');
+  });
+
+  test('reports an ephemeral instance ID without the ephemeral flag', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+      clientSession: const ClientSession(
+        instanceId: '9d8c7b6a-5f4e-4d3c-a2b1-0f9e8d7c6b5a',
+        ephemeral: true,
+      ),
+    );
+
+    final initialization = client.initialize();
+    transport.emitConfigSet(configSet(configs: const {}));
+    await initialization;
+
+    client.getValue('dark-mode', false);
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    final report = await reported.future.timeout(const Duration(seconds: 10));
+
+    expect(report['instanceId'], '9d8c7b6a-5f4e-4d3c-a2b1-0f9e8d7c6b5a');
+    expect(report, isNot(contains('ephemeral')));
   });
 }

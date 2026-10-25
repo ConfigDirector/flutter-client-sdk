@@ -19,12 +19,14 @@ final class TelemetryEventCollector implements TelemetryClient {
   TelemetryEventCollector({
     required EventReporter reporter,
     required SdkMetaContext Function() currentMetaContext,
+    required Future<String> instanceId,
     required ConfigDirectorLogger logger,
     this.flushInterval = const Duration(seconds: 30),
     Duration initialFlushDelay = const Duration(seconds: 5),
     int eventQueueLimit = 1000,
   }) : _reporter = reporter,
        _currentMetaContext = currentMetaContext,
+       _instanceId = instanceId,
        _logger = logger,
        _queue = EventQueue(limit: eventQueueLimit) {
     _flushTimer = Timer(initialFlushDelay, _onFlushTimer);
@@ -34,6 +36,7 @@ final class TelemetryEventCollector implements TelemetryClient {
 
   final EventReporter _reporter;
   final SdkMetaContext Function() _currentMetaContext;
+  final Future<String> _instanceId;
   final ConfigDirectorLogger _logger;
   final EventQueue<EvaluatedConfigEvent> _queue;
   final InvalidContextSubmissions _invalidContextSubmissions =
@@ -114,17 +117,26 @@ final class TelemetryEventCollector implements TelemetryClient {
   }
 
   Future<void> _flush() {
-    final request = EventReportRequest(
-      snapshot: _queue.takeSnapshot(),
-      invalidContextSubmissions: _invalidContextSubmissions.takeAggregated(),
-      metaContext: _currentMetaContext(),
-      context: _context,
-    );
-    if (request.isEmpty) {
+    final snapshot = _queue.takeSnapshot();
+    final invalidContextSubmissions = _invalidContextSubmissions
+        .takeAggregated();
+    if (nothingToReport(snapshot, invalidContextSubmissions)) {
       return _flushChain;
     }
 
-    final flush = _flushChain.then((_) => _send(request));
+    final metaContext = _currentMetaContext();
+    final context = _context;
+    final flush = _flushChain.then(
+      (_) async => _send(
+        EventReportRequest(
+          snapshot: snapshot,
+          invalidContextSubmissions: invalidContextSubmissions,
+          metaContext: metaContext,
+          instanceId: await _instanceId,
+          context: context,
+        ),
+      ),
+    );
     _flushChain = flush.catchError((Object _) {});
     return flush;
   }

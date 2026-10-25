@@ -42,12 +42,14 @@ EventReportRequest requestOf(
     sdkVersion: '1.0.1',
   ),
   ConfigDirectorContext? context,
+  String instanceId = 'instance-id',
   int droppedCount = 0,
   List<AggregatedEvent<InvalidContextSubmission>> invalidContextSubmissions =
       const [],
 }) => EventReportRequest(
   metaContext: metaContext,
   context: context,
+  instanceId: instanceId,
   snapshot: EventQueueSnapshot(
     startTime: DateTime.utc(2026),
     endTime: DateTime.utc(2026, 1, 1, 0, 0, 30),
@@ -135,6 +137,7 @@ void main() {
 
       expect(bodyOf(requests.single), {
         'clientSdkKey': 'a-client-sdk-key',
+        'instanceId': 'instance-id',
         'context': {'id': 'user-123', 'name': 'Ada'},
         'metaContext': {'sdkName': 'reporter-tests', 'sdkVersion': '1.0.1'},
         'discreteEvents': <String, Object?>{},
@@ -277,6 +280,21 @@ void main() {
       'sdkName': 'reporter-tests',
       'sdkVersion': '1.0.1',
     });
+  });
+
+  test('reports the instance ID the request carries', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    await reporter.report(
+      requestOf([
+        evaluation(),
+      ], instanceId: '3f2b8c1e-7a4d-4e9b-8c6f-1d2e3f4a5b6c'),
+    );
+
+    expect(
+      bodyOf(requests.single),
+      containsPair('instanceId', '3f2b8c1e-7a4d-4e9b-8c6f-1d2e3f4a5b6c'),
+    );
   });
 
   test('reports a value too large to send by its id', () async {

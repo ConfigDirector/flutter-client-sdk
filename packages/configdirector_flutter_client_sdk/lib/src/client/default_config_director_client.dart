@@ -104,6 +104,9 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
                     instanceIdStorage ?? sharedPreferencesInstanceIdStorage(),
                 logger: logger,
               );
+        final instanceId = settledClientSession.then(
+          (session) => session.instanceId,
+        );
 
         final cachingPlan = planCaching(
           live,
@@ -120,6 +123,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
               TelemetryEventCollector(
                 logger: logger,
                 currentMetaContext: () => transportOptions.metaContext,
+                instanceId: instanceId,
                 reporter: createEventReporter(
                   sdkKey: live.clientSdkKey,
                   baseUrl: live.baseUrl,
@@ -146,9 +150,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           ]),
           cachedValuesStore: _cachedValuesStoreFor(
             cachingPlan,
-            instanceId: settledClientSession.then(
-              (session) => session.instanceId,
-            ),
+            instanceId: instanceId,
             logger: logger,
           ),
         );
