@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
 import 'client/client_options.dart';
 import 'client/connection_plan.dart';
 import 'logger.dart';
 import 'types.dart';
 
-const int _entryFormatVersion = 1;
+const int _entryFormatVersion = 2;
+const int _firstEntryFormatVersion = 1;
 const String _defaultContextKind = 'user';
 
 sealed class CachingPlan {
@@ -14,10 +17,10 @@ sealed class CachingPlan {
 }
 
 final class KeepValues extends CachingPlan {
-  const KeepValues({required this.provider, required this.clientSdkKey});
+  const KeepValues({required this.provider, required this.clientSdkKeyDigest});
 
   final CachingProvider provider;
-  final String clientSdkKey;
+  final String clientSdkKeyDigest;
 }
 
 final class KeepNothing extends CachingPlan {
@@ -27,14 +30,17 @@ final class KeepNothing extends CachingPlan {
 CachingPlan planCaching(
   Connect live,
   CachingOptions caching,
-  CachingProvider Function(String clientSdkKey) platformProvider,
+  CachingProvider Function(String clientSdkKeyDigest) platformProvider,
 ) {
   if (!caching.enabled) {
     return const KeepNothing();
   }
+  final clientSdkKeyDigest = sha256
+      .convert(utf8.encode(live.clientSdkKey))
+      .toString();
   return KeepValues(
-    provider: caching.provider ?? platformProvider(live.clientSdkKey),
-    clientSdkKey: live.clientSdkKey,
+    provider: caching.provider ?? platformProvider(clientSdkKeyDigest),
+    clientSdkKeyDigest: clientSdkKeyDigest,
   );
 }
 
@@ -110,7 +116,11 @@ sealed class CachedValuesRead {
   const CachedValuesRead();
 }
 
-final class CachedValuesStored extends CachedValuesRead {
+sealed class _EntryDecodingOutcome extends CachedValuesRead {
+  const _EntryDecodingOutcome();
+}
+
+final class CachedValuesStored extends _EntryDecodingOutcome {
   const CachedValuesStored(this.cachedValues);
 
   final CachedValues cachedValues;
@@ -120,7 +130,11 @@ final class NoCachedValues extends CachedValuesRead {
   const NoCachedValues();
 }
 
-final class CachedValuesUnreadable extends CachedValuesRead {
+final class CachedValuesInFirstFormat extends _EntryDecodingOutcome {
+  const CachedValuesInFirstFormat();
+}
+
+final class CachedValuesUnreadable extends _EntryDecodingOutcome {
   const CachedValuesUnreadable();
 }
 
@@ -152,10 +166,10 @@ CachedValuesAdoption decideCachedValuesAdoption(
   return CachedValuesAdoption.adopt;
 }
 
-String _encodeEntry(String clientSdkKey, CachedValues cachedValues) =>
+String _encodeEntry(String clientSdkKeyDigest, CachedValues cachedValues) =>
     jsonEncode({
       'formatVersion': _entryFormatVersion,
-      'clientSdkKey': clientSdkKey,
+      'clientSdkKeyDigest': clientSdkKeyDigest,
       'contextTag': cachedValues.contextTag.toJson(),
       'environmentId': cachedValues.environmentId,
       'projectId': cachedValues.projectId,
@@ -165,36 +179,51 @@ String _encodeEntry(String clientSdkKey, CachedValues cachedValues) =>
       'receivedAt': cachedValues.receivedAt,
     });
 
-CachedValues? _decodeEntryFor(String clientSdkKey, String raw) {
-  final Object? decoded;
+_EntryDecodingOutcome _decodeEntryFor(
+  String clientSdkKeyDigest,
+  String serialized,
+) {
+  final Object? entry;
   try {
-    decoded = jsonDecode(raw);
+    entry = jsonDecode(serialized);
   } on FormatException {
-    return null;
+    return const CachedValuesUnreadable();
   }
-  if (decoded is! Map<String, Object?>) {
-    return null;
+  if (entry is! Map<String, Object?>) {
+    return const CachedValuesUnreadable();
   }
-  final contextTag = _decodeContextTag(decoded['contextTag']);
-  final configs = _decodeConfigs(decoded['configs']);
-  final environmentId = decoded['environmentId'];
-  final projectId = decoded['projectId'];
-  final receivedAt = decoded['receivedAt'];
-  if (decoded['formatVersion'] != _entryFormatVersion ||
-      decoded['clientSdkKey'] != clientSdkKey ||
+  return switch (entry['formatVersion']) {
+    _entryFormatVersion => _decodeCachedValuesFor(clientSdkKeyDigest, entry),
+    _firstEntryFormatVersion => const CachedValuesInFirstFormat(),
+    _ => const CachedValuesUnreadable(),
+  };
+}
+
+_EntryDecodingOutcome _decodeCachedValuesFor(
+  String clientSdkKeyDigest,
+  Map<String, Object?> entry,
+) {
+  final contextTag = _decodeContextTag(entry['contextTag']);
+  final configs = _decodeConfigs(entry['configs']);
+  final environmentId = entry['environmentId'];
+  final projectId = entry['projectId'];
+  final receivedAt = entry['receivedAt'];
+  if (entry['clientSdkKeyDigest'] != clientSdkKeyDigest ||
       contextTag == null ||
       configs == null ||
       environmentId is! String ||
       projectId is! String ||
       receivedAt is! int) {
-    return null;
+    return const CachedValuesUnreadable();
   }
-  return CachedValues(
-    contextTag: contextTag,
-    environmentId: environmentId,
-    projectId: projectId,
-    configs: configs,
-    receivedAt: receivedAt,
+  return CachedValuesStored(
+    CachedValues(
+      contextTag: contextTag,
+      environmentId: environmentId,
+      projectId: projectId,
+      configs: configs,
+      receivedAt: receivedAt,
+    ),
   );
 }
 
@@ -244,18 +273,18 @@ enum _Warning {
 final class CachedValuesStore {
   CachedValuesStore({
     required CachingProvider provider,
-    required String clientSdkKey,
+    required String clientSdkKeyDigest,
     required Future<String> instanceId,
     required ConfigDirectorLogger logger,
   }) : _provider = provider,
-       _clientSdkKey = clientSdkKey,
+       _clientSdkKeyDigest = clientSdkKeyDigest,
        _instanceId = instanceId,
        _logger = logger {
     _pendingRead = _readEntry();
   }
 
   final CachingProvider _provider;
-  final String _clientSdkKey;
+  final String _clientSdkKeyDigest;
   final Future<String> _instanceId;
   final ConfigDirectorLogger _logger;
   final Set<_Warning> _warned = {};
@@ -286,9 +315,9 @@ final class CachedValuesStore {
   }
 
   Future<CachedValuesRead> _readEntry() async {
-    final String? raw;
+    final String? serialized;
     try {
-      raw = await _provider.read();
+      serialized = await _provider.read();
     } on Object catch (error, stackTrace) {
       _warnOnce(
         _Warning.readFailed,
@@ -298,21 +327,25 @@ final class CachedValuesStore {
       );
       return const CachedValuesReadFailed();
     }
-    if (raw == null || raw.isEmpty) {
+    if (serialized == null || serialized.isEmpty) {
       return const NoCachedValues();
     }
 
-    final cachedValues = _decodeEntryFor(_clientSdkKey, raw);
-    if (cachedValues == null) {
-      _warnOnce(
-        _Warning.unreadable,
-        'The values kept on the device could not be read and were removed, '
-        'starting without them.',
-      );
-      await _removeEntry();
-      return const CachedValuesUnreadable();
+    final decodingOutcome = _decodeEntryFor(_clientSdkKeyDigest, serialized);
+    switch (decodingOutcome) {
+      case CachedValuesStored():
+        break;
+      case CachedValuesInFirstFormat():
+        await _removeEntry();
+      case CachedValuesUnreadable():
+        _warnOnce(
+          _Warning.unreadable,
+          'The values kept on the device could not be read and were removed, '
+          'starting without them.',
+        );
+        await _removeEntry();
     }
-    return CachedValuesStored(cachedValues);
+    return decodingOutcome;
   }
 
   Future<void> _writeQueued() async {
@@ -332,7 +365,7 @@ final class CachedValuesStore {
   }
 
   Future<void> _writeEntry(CachedValues cachedValues) async {
-    final serialized = _encodeEntry(_clientSdkKey, cachedValues);
+    final serialized = _encodeEntry(_clientSdkKeyDigest, cachedValues);
     final size = utf8.encode(serialized).length;
     final limit = _provider.sizeLimit();
     if (size > limit) {

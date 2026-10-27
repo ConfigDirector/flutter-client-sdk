@@ -2459,11 +2459,12 @@ void main() {
         'contextId': 'user-1',
       },
       Map<String, Object?> configs = const {'dark-mode': darkModeOn},
-      int formatVersion = 1,
-      String clientSdkKey = 'a-client-sdk-key',
+      int formatVersion = 2,
+      String clientSdkKeyDigest =
+          'a436715ed46b2aacdf095eb10a8ed3d532c299456a62595160ebd77bf5be76de',
     }) => jsonEncode({
       'formatVersion': formatVersion,
-      'clientSdkKey': clientSdkKey,
+      'clientSdkKeyDigest': clientSdkKeyDigest,
       'contextTag': contextTag,
       'environmentId': 'env-id',
       'projectId': 'project-id',
@@ -2536,8 +2537,7 @@ void main() {
       await pumpEventQueue();
       expect(readyEvents, hasLength(1));
       final written = jsonDecode(cachingProvider.writes.single) as Map;
-      expect(written['formatVersion'], 1);
-      expect(written['clientSdkKey'], 'a-client-sdk-key');
+      expect(written['formatVersion'], 2);
       expect(written['contextTag'], {
         'contextKind': 'user',
         'contextId': 'user-1',
@@ -3032,6 +3032,26 @@ void main() {
       expect(logger.warnings, hasLength(2));
     });
 
+    test('hands the caching provider the digest of the client SDK key, never '
+        'the key', () async {
+      final client = autoDispose(createClient());
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+
+      final written = cachingProvider.writes.single;
+      expect(
+        (jsonDecode(written) as Map)['clientSdkKeyDigest'],
+        'a436715ed46b2aacdf095eb10a8ed3d532c299456a62595160ebd77bf5be76de',
+      );
+      expect(written, isNot(contains('a-client-sdk-key')));
+    });
+
     test(
       'a context update that cannot connect keeps serving the kept values',
       () async {
@@ -3061,7 +3081,7 @@ void main() {
 
     test('an entry with an unknown format version is removed, with one '
         'warning', () async {
-      cachingProvider.stored = entry(formatVersion: 2);
+      cachingProvider.stored = entry(formatVersion: 3);
       final client = autoDispose(
         createClient(
           connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
@@ -3083,9 +3103,49 @@ void main() {
       expect(logger.warnings, hasLength(1));
     });
 
-    test('an entry kept for another client SDK key is removed', () async {
-      cachingProvider.stored = entry(clientSdkKey: 'another-client-sdk-key');
-      final client = autoDispose(createClient());
+    test('an entry kept by an earlier release is removed without a '
+        'warning', () async {
+      cachingProvider.stored = jsonEncode({
+        'formatVersion': 1,
+        'clientSdkKey': 'a-client-sdk-key',
+        'contextTag': {'contextKind': 'user', 'contextId': 'user-1'},
+        'environmentId': 'env-id',
+        'projectId': 'project-id',
+        'configs': {'dark-mode': darkModeOn},
+        'receivedAt': 1760000000000,
+      });
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+      final loaded = <CachedValuesLoadedEvent>[];
+      client.onCachedValuesLoaded.listen(loaded.add);
+
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      expect(
+        client.evaluate('dark-mode', false).reason,
+        EvaluationReason.clientNotReady,
+      );
+      expect(loaded, isEmpty);
+      expect(cachingProvider.removeCount, 1);
+      expect(cachingProvider.stored, isNull);
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('an entry kept for another client SDK key is removed, with one '
+        'warning', () async {
+      cachingProvider.stored = entry(
+        clientSdkKeyDigest:
+            '1b7c1cc1b967c42801d6886d061d42850d4a0fa49c5670403917512f9ccbde8b',
+      );
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
 
       unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
       await pumpEventQueue();
@@ -3095,6 +3155,8 @@ void main() {
         EvaluationReason.clientNotReady,
       );
       expect(cachingProvider.removeCount, 1);
+      expect(cachingProvider.stored, isNull);
+      expect(logger.warnings, hasLength(1));
     });
 
     test('an entry that is not JSON is removed', () async {
@@ -3284,6 +3346,32 @@ void main() {
       );
       expect(preferences.getKeys(), hasLength(1));
       expect(cachingProvider.readCount, 0);
+    });
+
+    test('shared preferences keep the digest of the client SDK key, never '
+        'the key', () async {
+      SharedPreferences.setMockInitialValues({});
+      final client = autoDispose(createClient(caching: const CachingOptions()));
+
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      await pumpEventQueue();
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      await pumpEventQueue();
+
+      const preferenceKey =
+          'configdirector-sdk:cached-values:'
+          'a436715ed46b2aacdf095eb10a8ed3d532c299456a62595160ebd77bf5be76de';
+      final preferences = await SharedPreferences.getInstance();
+      expect(preferences.getKeys(), {preferenceKey});
+      final kept = preferences.getString(preferenceKey)!;
+      expect(
+        (jsonDecode(kept) as Map)['clientSdkKeyDigest'],
+        'a436715ed46b2aacdf095eb10a8ed3d532c299456a62595160ebd77bf5be76de',
+      );
+      expect(kept, isNot(contains('a-client-sdk-key')));
     });
   });
 }

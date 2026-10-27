@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../client/client_options.dart';
@@ -8,10 +5,9 @@ import '../client/client_options.dart';
 const String _cachedValuesKeyPrefix = 'configdirector-sdk:cached-values:';
 const int _sizeLimitBytes = 256 * 1024;
 
-CachingProvider sharedPreferencesCachingProvider(String clientSdkKey) =>
+CachingProvider sharedPreferencesCachingProvider(String clientSdkKeyDigest) =>
     _SharedPreferencesCachingProvider(
-      _cachedValuesKeyPrefix +
-          sha256.convert(utf8.encode(clientSdkKey)).toString(),
+      _cachedValuesKeyPrefix + clientSdkKeyDigest,
     );
 
 final class _SharedPreferencesCachingProvider implements CachingProvider {

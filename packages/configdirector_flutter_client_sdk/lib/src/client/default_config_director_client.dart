@@ -169,10 +169,10 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           'is turned off',
         );
         return null;
-      case KeepValues(:final provider, :final clientSdkKey):
+      case KeepValues(:final provider, :final clientSdkKeyDigest):
         return CachedValuesStore(
           provider: provider,
-          clientSdkKey: clientSdkKey,
+          clientSdkKeyDigest: clientSdkKeyDigest,
           instanceId: instanceId,
           logger: logger,
         );
@@ -516,6 +516,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     final CachedValues cachedValues;
     switch (read) {
       case NoCachedValues() ||
+          CachedValuesInFirstFormat() ||
           CachedValuesUnreadable() ||
           CachedValuesReadFailed():
         return;
