@@ -107,6 +107,44 @@ void main() {
     expect(unknown.reason, 'ERROR');
   });
 
+  test(
+    'passes the resolution details of a served value to after hooks',
+    () async {
+      await api.setProviderAndWait(provider);
+      final hook = _RecordingHook();
+      api.addHooks([hook]);
+
+      api.getClient().getBooleanValue('dark-mode', false);
+
+      final details = hook.afterDetails.single;
+      expect(details.reason, 'TARGETING_MATCH');
+      expect(details.variant, 'value-id-dark-mode');
+    },
+  );
+
+  test(
+    'runs error and finally hooks for a config that does not exist',
+    () async {
+      await api.setProviderAndWait(provider);
+      final hook = _RecordingHook();
+      api.addHooks([hook]);
+
+      api.getClient().getStringValue('missing', 'default');
+
+      expect(hook.errors, [
+        isA<OpenFeatureException>().having(
+          (error) => error.errorCode,
+          'errorCode',
+          ErrorCode.flagNotFound,
+        ),
+      ]);
+      final details = hook.finallyDetails.single;
+      expect(details.value, 'default');
+      expect(details.errorCode, ErrorCode.flagNotFound);
+      expect(details.reason, 'ERROR');
+    },
+  );
+
   test('notifies ready handlers once', () async {
     final ready = record(ProviderEventType.ready);
 
@@ -273,4 +311,28 @@ void main() {
 
     expect(configDirectorClient.disposed, isTrue);
   });
+}
+
+final class _RecordingHook extends HookAdapter {
+  final List<FlagEvaluationDetails<Object>> afterDetails = [];
+  final List<Object> errors = [];
+  final List<FlagEvaluationDetails<Object>> finallyDetails = [];
+
+  @override
+  void after(
+    HookContext context,
+    FlagEvaluationDetails<Object> details,
+    HookHints hints,
+  ) => afterDetails.add(details);
+
+  @override
+  void error(HookContext context, Object error, HookHints hints) =>
+      errors.add(error);
+
+  @override
+  void finallyAfter(
+    HookContext context,
+    FlagEvaluationDetails<Object> details,
+    HookHints hints,
+  ) => finallyDetails.add(details);
 }

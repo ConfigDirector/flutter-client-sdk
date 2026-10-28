@@ -33,7 +33,7 @@ final client = OpenFeatureAPI.instance.getClient();
 final darkMode = client.getBooleanValue('dark-mode', false);
 ```
 
-`setProviderAndWait` throws an `OpenFeatureException` when ConfigDirector cannot be reached in time. The provider keeps trying to connect and reports ready once it succeeds; until then flags resolve to their default values.
+`setProviderAndWait` throws an `OpenFeatureException` when ConfigDirector cannot be reached in time. The provider keeps trying to connect and reports ready once it succeeds; until then flags resolve to the values kept on the device from an earlier launch, or to their in-code default values when there are none.
 
 ## Evaluation context
 
@@ -61,9 +61,11 @@ await OpenFeatureAPI.instance.setEvaluationContextAndWait(
 );
 ```
 
+If ConfigDirector does not answer for a new context in time, `setEvaluationContextAndWait` throws an `OpenFeatureException`. Flags still follow the new context once ConfigDirector answers, but hooks receive the previous evaluation context until a later context update succeeds, because the OpenFeature Dart client SDK keeps the previous context after a failed update.
+
 ## Resolution details
 
-A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's id as its variant. One the config has no value for resolves to the default with the reason `DEFAULT`. Everything else is an error carrying the default: `flagNotFound` for an unknown key, `providerNotReady` before config state has arrived, and `typeMismatch` for a value that cannot be read as the requested type.
+A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's id as its variant. A value kept on the device from an earlier launch of the same context, served until live values arrive, resolves with the reason `CACHED` and the value's id as its variant. One the config has no value for resolves to the in-code default value with the reason `DEFAULT`. Everything else is an error carrying the in-code default value: `flagNotFound` for an unknown key, `providerNotReady` before config state has arrived, and `typeMismatch` for a value that cannot be read as the requested type.
 
 ```dart
 final details = client.getBooleanDetails('dark-mode', false);
