@@ -47,9 +47,7 @@ class PollingTransport implements Transport {
     Duration timeout,
     ClientConnectAction action,
   ) async {
-    _cancelPolling();
-    _connectionGeneration += 1;
-    final generation = _connectionGeneration;
+    final generation = _endCurrentConnection();
 
     try {
       await _fetchConfigs(context, timeout);
@@ -192,13 +190,15 @@ class PollingTransport implements Transport {
 
   @override
   void close() {
-    _cancelPolling();
-    _connectionGeneration += 1;
+    _endCurrentConnection();
   }
 
-  void _cancelPolling() {
+  int _endCurrentConnection() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
+    _lastUpdateTimestamp = null;
+    _connectionGeneration += 1;
+    return _connectionGeneration;
   }
 
   @override

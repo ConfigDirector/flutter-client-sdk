@@ -71,6 +71,28 @@ void main() {
     clientSession: clientSession,
   );
 
+  DefaultConfigDirectorClient createClientOverHttp(
+    ConnectionMode mode,
+    http.Client httpClient,
+  ) => autoDispose(
+    DefaultConfigDirectorClient(
+      'a-client-sdk-key',
+      options: ConfigDirectorClientOptions(
+        logger: logger,
+        connection: ConnectionOptions(
+          mode: mode,
+          timeout: const Duration(seconds: 3),
+        ),
+      ),
+      httpClient: httpClient,
+      telemetryClient: telemetry,
+      lifecycleWatcher: lifecycleWatcher,
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+      instanceIdStorage: instanceIdStorage,
+      connectionRetryDelay: (_) => const Duration(milliseconds: 1),
+    ),
+  );
+
   setUp(() {
     transport = FakeTransport();
     lifecycleWatcher = FakeLifecycleWatcher();
@@ -863,6 +885,67 @@ void main() {
       expect(client.context, context);
       expect(telemetry.contextUpdates, [context]);
     });
+
+    group('when no config changed since the last values', () {
+      const freeUser = ConfigDirectorContext(id: 'free-user');
+      const proUser = ConfigDirectorContext(id: 'pro-user');
+      const plans = {'free-user': 'free', 'pro-user': 'pro'};
+
+      DefaultConfigDirectorClient createPollingClientWithNoConfigChanges() =>
+          createClientOverHttp(
+            ConnectionMode.polling,
+            MockClient((request) async {
+              final payload = jsonDecode(request.body) as Map<String, Object?>;
+              if (payload.containsKey('lastUpdateTimestamp')) {
+                return http.Response('', 204);
+              }
+
+              final givenContext = payload['givenContext'] as Map;
+              return http.Response(
+                jsonEncode({
+                  'kind': 'full',
+                  'timestamp': '2026-10-29T10:00:00Z',
+                  'configs': {
+                    'plan': {
+                      'id': 'plan-id',
+                      'key': 'plan',
+                      'type': 'string',
+                      'value': plans[givenContext['id']],
+                      'valueId': 'value-id',
+                    },
+                  },
+                }),
+                200,
+              );
+            }),
+          );
+
+      test('updateContext gets the values for the new context', () async {
+        final client = createPollingClientWithNoConfigChanges();
+        await client.initialize(freeUser);
+
+        await client.updateContext(proUser);
+
+        expect(client.context, proUser);
+        expect(client.isReady, isTrue);
+        expect(client.getValue('plan', 'none'), 'pro');
+      });
+
+      test('becomes ready again when foregrounded', () async {
+        final client = createPollingClientWithNoConfigChanges();
+        await client.initialize(freeUser);
+        final readyActions = <ClientConnectAction>[];
+        client.onClientReady.listen((event) => readyActions.add(event.action));
+
+        lifecycleWatcher
+          ..send(AppLifecycleState.paused)
+          ..send(AppLifecycleState.resumed);
+        await pumpEventQueue();
+
+        expect(client.isReady, isTrue);
+        expect(readyActions, [ClientConnectAction.networkResume]);
+      });
+    });
   });
 
   group('getValue', () {
@@ -1454,28 +1537,6 @@ void main() {
           jsonDecode((request as http.Request).body) as Map<String, Object?>;
       givenContexts.add(payload['givenContext']);
     }
-
-    DefaultConfigDirectorClient createClientOverHttp(
-      ConnectionMode mode,
-      http.Client httpClient,
-    ) => autoDispose(
-      DefaultConfigDirectorClient(
-        'a-client-sdk-key',
-        options: ConfigDirectorClientOptions(
-          logger: logger,
-          connection: ConnectionOptions(
-            mode: mode,
-            timeout: const Duration(seconds: 3),
-          ),
-        ),
-        httpClient: httpClient,
-        telemetryClient: telemetry,
-        lifecycleWatcher: lifecycleWatcher,
-        appInfoResolver: () async => const ConfigDirectorMetaContext(),
-        instanceIdStorage: instanceIdStorage,
-        connectionRetryDelay: (_) => const Duration(milliseconds: 1),
-      ),
-    );
 
     DefaultConfigDirectorClient createStreamingClient() => createClientOverHttp(
       ConnectionMode.streaming,

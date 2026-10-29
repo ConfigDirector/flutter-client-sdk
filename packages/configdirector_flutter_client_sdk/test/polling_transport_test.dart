@@ -222,6 +222,34 @@ void main() {
     });
   });
 
+  test('sends no timestamp on the first fetch of a later connect', () async {
+    final transport = PollingTransport(
+      optionsWith(
+        respondWith([
+          http.Response(configSetBody(timestamp: '2026-08-02T00:00:00Z'), 200),
+        ]),
+      ),
+    );
+    addTearDown(transport.dispose);
+
+    await transport.connect(
+      const ConfigDirectorContext(id: 'user-a'),
+      _timeout,
+      ClientConnectAction.initialization,
+    );
+    await transport.connect(
+      const ConfigDirectorContext(id: 'user-b'),
+      _timeout,
+      ClientConnectAction.contextUpdate,
+    );
+
+    expect(requests, hasLength(2));
+    expect(
+      jsonDecode(requests.last.body),
+      isNot(contains('lastUpdateTimestamp')),
+    );
+  });
+
   test('keeps polling on the configured interval', () {
     fakeAsync((async) {
       final transport = PollingTransport(

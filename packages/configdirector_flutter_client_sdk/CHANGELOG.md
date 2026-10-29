@@ -11,6 +11,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   own, no longer include the client SDK key, only its SHA-256 digest. Values kept by an earlier
   version are removed without a warning on the first start after the upgrade, so that start serves
   in-code default values until live values arrive.
+- In polling mode, `updateContext` and `resumeNetwork` now always get the values for their context.
+  Before, when no config had changed since the client last got values, `updateContext` kept
+  serving the previous context's values under the new context until a config changed, and returned
+  at its timeout with a timeout warning. After `resumeNetwork`, or the app coming back to the
+  foreground, the client stayed not ready, with a timeout warning, until a config changed. Each
+  `initialize`, `updateContext` and `resumeNetwork` now downloads the full set of configs, so
+  `onConfigsUpdated` lists every config after each of them.
 
 ## [1.7.1] - 2026-10-25
 
