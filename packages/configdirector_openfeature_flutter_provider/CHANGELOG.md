@@ -5,6 +5,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.7] - 2026-11-01
+
+### Changed
+
+- Requires version 1.7.2 of `configdirector_flutter_client_sdk`, which fixes two issues. The values
+  kept on the device no longer include the client SDK key, only its SHA-256 digest; values kept by
+  an earlier version are removed on the first start after the upgrade, so that start resolves flags
+  to their in-code default values until live values arrive. In polling mode, a context change now
+  always gets the values for the new context: before, when no config had changed since the last
+  values arrived, flags kept resolving against the previous context's values and the provider
+  reported an error at the connection timeout. The configuration-changed event that follows a
+  context change in polling mode now lists every flag.
+
 ## [0.1.0-beta.6] - 2026-10-23
 
 ### Added
