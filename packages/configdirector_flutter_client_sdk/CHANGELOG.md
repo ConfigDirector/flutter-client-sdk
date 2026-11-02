@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-11-01
+
 ### Fixed
 
 - The values the client keeps on the device, in `shared_preferences` or a `CachingProvider` of your
