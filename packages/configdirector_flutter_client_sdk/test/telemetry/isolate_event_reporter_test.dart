@@ -29,7 +29,8 @@ EventReportRequest requestOf({
   instanceId: 'instance-id',
   context: context,
   invalidContextSubmissions: invalidContextSubmissions,
-  snapshot: EventQueueSnapshot(
+  trackedEventEntries: const [],
+  evaluationSnapshot: EventQueueSnapshot(
     startTime: DateTime.utc(2026),
     endTime: DateTime.utc(2026, 1, 1, 0, 0, 30),
     events: [

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_event_collector.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_events.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/tracked_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,7 +42,7 @@ void main() {
   TelemetryEventCollector createCollector({
     SdkMetaContext Function() currentMetaContext = _currentMetaContext,
     Future<String>? instanceId,
-    int eventQueueLimit = 1000,
+    int evaluationQueueLimit = 1000,
   }) => TelemetryEventCollector(
     reporter: reporter,
     currentMetaContext: currentMetaContext,
@@ -49,11 +50,11 @@ void main() {
     logger: logger,
     flushInterval: _flushInterval,
     initialFlushDelay: _initialFlushDelay,
-    eventQueueLimit: eventQueueLimit,
+    evaluationQueueLimit: evaluationQueueLimit,
   );
 
   List<EvaluatedConfigEvent> reportedEvents(int index) =>
-      reporter.requests[index].snapshot.events;
+      reporter.requests[index].evaluationSnapshot.events;
 
   List<(String?, int)> reportedInvalidContextSubmissions(int index) => [
     for (final entry in reporter.requests[index].invalidContextSubmissions)
@@ -166,7 +167,7 @@ void main() {
 
   test('drops the oldest events once the queue is full', () {
     fakeAsync((async) {
-      final collector = createCollector(eventQueueLimit: 2);
+      final collector = createCollector(evaluationQueueLimit: 2);
 
       for (final key in ['a', 'b', 'c', 'd']) {
         collector.evaluatedConfig(evaluation(key));
@@ -174,7 +175,7 @@ void main() {
       async.elapse(_initialFlushDelay);
 
       expect(reportedEvents(0), [evaluation('c'), evaluation('d')]);
-      expect(reporter.requests.single.snapshot.droppedCount, 2);
+      expect(reporter.requests.single.evaluationSnapshot.droppedCount, 2);
     });
   });
 
@@ -291,6 +292,34 @@ void main() {
       async.flushMicrotasks();
 
       collector.recordInvalidContextSubmission('Device');
+      reporter.gate!.complete();
+      async.flushMicrotasks();
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      expect(reporter.requests, hasLength(1));
+    });
+  });
+
+  test('discards events tracked while a report that ends in a fatal error was '
+      'in flight', () {
+    fakeAsync((async) {
+      final collector = createCollector()..evaluatedConfig(evaluation());
+      reporter
+        ..response = const ReporterResponse.failed(fatalError: true)
+        ..gate = Completer<void>();
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      collector.trackedEvent(
+        admitTrackedEvent(
+          name: 'checkout-completed',
+          context: null,
+          options: null,
+          happenedAt: DateTime.utc(2026),
+        ),
+        null,
+      );
       reporter.gate!.complete();
       async.flushMicrotasks();
       unawaited(collector.flush());

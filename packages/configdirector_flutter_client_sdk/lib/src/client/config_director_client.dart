@@ -175,6 +175,27 @@ abstract interface class ConfigDirectorClient {
   /// stream.
   Stream<ConfigEvaluatedEvent> get onConfigEvaluated;
 
+  /// Reports to ConfigDirector that something happened for the current context,
+  /// such as a completed checkout, so it can be counted. The event is sent with
+  /// the next telemetry batch. It never throws, and does nothing in
+  /// [ConnectionMode.offline].
+  ///
+  /// An event counts for an experiment only when the current context has an
+  /// `id`, the one the experiment's config was evaluated for. Before the client
+  /// has a context, or for a context without an `id`, the event is still
+  /// reported. The `id` of a context marked anonymous is not sent.
+  ///
+  /// [eventName] has 1 to 150 characters. An event with any other name is not
+  /// reported and a warning is logged.
+  ///
+  /// ```dart
+  /// client.track(
+  ///   'checkout-completed',
+  ///   const TrackOptions(value: 49.9, details: {'plan': 'pro'}),
+  /// );
+  /// ```
+  void track(String eventName, [TrackOptions? options]);
+
   /// Pauses the network connection without discarding config state, event
   /// listeners, or watch streams.
   ///

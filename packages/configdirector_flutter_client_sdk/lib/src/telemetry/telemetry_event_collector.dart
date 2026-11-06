@@ -7,9 +7,11 @@ import 'event_reporter.dart';
 import 'invalid_context_submissions.dart';
 import 'telemetry_client.dart';
 import 'telemetry_events.dart';
+import 'tracked_event_queue.dart';
+import 'tracked_events.dart';
 
-/// The default [TelemetryClient]: it queues evaluations as they happen and
-/// hands them to an [EventReporter] on an interval.
+/// The default [TelemetryClient]: it queues evaluations and tracked events as
+/// they happen and hands them to an [EventReporter] on an interval.
 ///
 /// Collecting an event only appends it to a bounded in-memory queue, which is
 /// what keeps evaluating a config cheap. Everything expensive — hashing large
@@ -23,12 +25,12 @@ final class TelemetryEventCollector implements TelemetryClient {
     required ConfigDirectorLogger logger,
     this.flushInterval = const Duration(seconds: 30),
     Duration initialFlushDelay = const Duration(seconds: 5),
-    int eventQueueLimit = 1000,
+    int evaluationQueueLimit = 1000,
   }) : _reporter = reporter,
        _currentMetaContext = currentMetaContext,
        _instanceId = instanceId,
        _logger = logger,
-       _queue = EventQueue(limit: eventQueueLimit) {
+       _evaluationEventQueue = EventQueue(limit: evaluationQueueLimit) {
     _flushTimer = Timer(initialFlushDelay, _onFlushTimer);
   }
 
@@ -38,9 +40,10 @@ final class TelemetryEventCollector implements TelemetryClient {
   final SdkMetaContext Function() _currentMetaContext;
   final Future<String> _instanceId;
   final ConfigDirectorLogger _logger;
-  final EventQueue<EvaluatedConfigEvent> _queue;
+  final EventQueue<EvaluatedConfigEvent> _evaluationEventQueue;
   final InvalidContextSubmissions _invalidContextSubmissions =
       InvalidContextSubmissions();
+  final TrackedEventQueue _trackedEventQueue = TrackedEventQueue();
 
   ConfigDirectorContext? _context;
   Timer? _flushTimer;
@@ -53,7 +56,7 @@ final class TelemetryEventCollector implements TelemetryClient {
     if (!_collecting) {
       return;
     }
-    _queue.push(event);
+    _evaluationEventQueue.push(event);
   }
 
   @override
@@ -62,6 +65,22 @@ final class TelemetryEventCollector implements TelemetryClient {
       return;
     }
     _invalidContextSubmissions.record(contextKindSample);
+  }
+
+  @override
+  void trackedEvent(
+    TrackedEventAdmission admission,
+    ConfigDirectorContext? context,
+  ) {
+    if (!_collecting) {
+      return;
+    }
+    for (final warning in _trackedEventQueue.add(admission)) {
+      _logger.warn(
+        '${warning.message} Further tracked events like it are not logged '
+        'until the next telemetry batch is sent.',
+      );
+    }
   }
 
   @override
@@ -100,8 +119,7 @@ final class TelemetryEventCollector implements TelemetryClient {
 
     await _flush();
     await _reporter.close();
-    _queue.clear();
-    _invalidContextSubmissions.clear();
+    _discardCollectedEvents();
   }
 
   void _onFlushTimer() => unawaited(_flushAndScheduleNext());
@@ -117,10 +135,15 @@ final class TelemetryEventCollector implements TelemetryClient {
   }
 
   Future<void> _flush() {
-    final snapshot = _queue.takeSnapshot();
+    final evaluationSnapshot = _evaluationEventQueue.takeSnapshot();
     final invalidContextSubmissions = _invalidContextSubmissions
         .takeAggregated();
-    if (nothingToReport(snapshot, invalidContextSubmissions)) {
+    final trackedEventEntries = _trackedEventQueue.takeBatch();
+    if (nothingToReport(
+      evaluationSnapshot,
+      invalidContextSubmissions,
+      trackedEventEntries,
+    )) {
       return _flushChain;
     }
 
@@ -129,8 +152,9 @@ final class TelemetryEventCollector implements TelemetryClient {
     final flush = _flushChain.then(
       (_) async => _send(
         EventReportRequest(
-          snapshot: snapshot,
+          evaluationSnapshot: evaluationSnapshot,
           invalidContextSubmissions: invalidContextSubmissions,
+          trackedEventEntries: trackedEventEntries,
           metaContext: metaContext,
           instanceId: await _instanceId,
           context: context,
@@ -159,12 +183,17 @@ final class TelemetryEventCollector implements TelemetryClient {
     }
   }
 
+  void _discardCollectedEvents() {
+    _evaluationEventQueue.clear();
+    _invalidContextSubmissions.clear();
+    _trackedEventQueue.clear();
+  }
+
   void _stopCollecting() {
     _collecting = false;
     _flushTimer?.cancel();
     _flushTimer = null;
-    _queue.clear();
-    _invalidContextSubmissions.clear();
+    _discardCollectedEvents();
     unawaited(_reporter.close());
     _logger.warn(
       '[TelemetryEventCollector] Received a fatal error while reporting '

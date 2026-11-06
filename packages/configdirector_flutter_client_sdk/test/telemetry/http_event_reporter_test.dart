@@ -56,13 +56,14 @@ EventReportRequest requestOf(
   metaContext: metaContext,
   context: context,
   instanceId: instanceId,
-  snapshot: EventQueueSnapshot(
+  evaluationSnapshot: EventQueueSnapshot(
     startTime: DateTime.utc(2026),
     endTime: DateTime.utc(2026, 1, 1, 0, 0, 30),
     events: events,
     droppedCount: droppedCount,
   ),
   invalidContextSubmissions: invalidContextSubmissions,
+  trackedEventEntries: const [],
 );
 
 AggregatedEvent<InvalidContextSubmission> aggregatedInvalidContextSubmission(
@@ -152,7 +153,7 @@ void main() {
         'instanceId': 'instance-id',
         'context': {'id': 'user-123', 'name': 'Ada'},
         'metaContext': {'sdkName': 'reporter-tests', 'sdkVersion': '1.0.1'},
-        'discreteEvents': <String, Object?>{},
+        'discreteEvents': {'trackedEvents': <Object?>[]},
         'aggregatedEvents': {
           'evaluatedConfig': [
             {
@@ -543,6 +544,19 @@ void main() {
     expect(afterFatal.fatalError, isTrue);
     expect(requests, hasLength(1));
     expect(logger.messages, contains(contains('fatal status response (401)')));
+  });
+
+  test('discards a report too large for ConfigDirector with a warning and '
+      'keeps sending', () async {
+    final reporter = reporterWith((_) => http.Response('too large', 413));
+
+    final response = await reporter.report(requestOf([evaluation()]));
+    await reporter.report(requestOf([evaluation()]));
+
+    expect(response.success, isFalse);
+    expect(response.fatalError, isFalse);
+    expect(requests, hasLength(2));
+    expect(logger.warnings, [contains('413'), contains('413')]);
   });
 
   test('keeps sending after a rate limit response', () async {

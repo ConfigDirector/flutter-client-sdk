@@ -11,6 +11,7 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
   final Set<String> keysWithoutValue = {};
   final List<ConfigDirectorContext?> initializeCalls = [];
   final List<ConfigDirectorContext> updateContextCalls = [];
+  final List<Map<String, Object?>> trackCalls = [];
 
   bool connectionSucceeds = true;
   Completer<void>? connectionGate;
@@ -103,6 +104,13 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
       context: _context,
     );
   }
+
+  @override
+  void track(String eventName, [TrackOptions? options]) => trackCalls.add({
+    'eventName': eventName,
+    'value': options?.value,
+    'details': options?.details,
+  });
 
   @override
   void dispose() {

@@ -10,26 +10,36 @@ import '../types.dart';
 import 'event_aggregator.dart';
 import 'event_queue.dart';
 import 'telemetry_events.dart';
+import 'tracked_events.dart';
+
+const int _reportTooLargeStatus = 413;
 
 bool nothingToReport(
-  EventQueueSnapshot<EvaluatedConfigEvent> snapshot,
+  EventQueueSnapshot<EvaluatedConfigEvent> evaluationSnapshot,
   List<AggregatedEvent<InvalidContextSubmission>> invalidContextSubmissions,
-) => snapshot.isEmpty && invalidContextSubmissions.isEmpty;
+  List<TrackedEventEntry> trackedEventEntries,
+) =>
+    evaluationSnapshot.isEmpty &&
+    invalidContextSubmissions.isEmpty &&
+    trackedEventEntries.isEmpty;
 
 @immutable
 final class EventReportRequest {
   const EventReportRequest({
-    required this.snapshot,
+    required this.evaluationSnapshot,
     required this.invalidContextSubmissions,
+    required this.trackedEventEntries,
     required this.metaContext,
     required this.instanceId,
     this.context,
   });
 
-  final EventQueueSnapshot<EvaluatedConfigEvent> snapshot;
+  final EventQueueSnapshot<EvaluatedConfigEvent> evaluationSnapshot;
 
   final List<AggregatedEvent<InvalidContextSubmission>>
   invalidContextSubmissions;
+
+  final List<TrackedEventEntry> trackedEventEntries;
 
   final SdkMetaContext metaContext;
 
@@ -37,7 +47,11 @@ final class EventReportRequest {
 
   final ConfigDirectorContext? context;
 
-  bool get isEmpty => nothingToReport(snapshot, invalidContextSubmissions);
+  bool get isEmpty => nothingToReport(
+    evaluationSnapshot,
+    invalidContextSubmissions,
+    trackedEventEntries,
+  );
 }
 
 @immutable
@@ -92,14 +106,14 @@ final class HttpEventReporter implements EventReporter {
     }
 
     final events = [
-      for (final event in request.snapshot.events) event.compacted(),
+      for (final event in request.evaluationSnapshot.events) event.compacted(),
     ];
     final aggregated = aggregateEvents(
       EventQueueSnapshot(
-        startTime: request.snapshot.startTime,
-        endTime: request.snapshot.endTime,
+        startTime: request.evaluationSnapshot.startTime,
+        endTime: request.evaluationSnapshot.endTime,
         events: events,
-        droppedCount: request.snapshot.droppedCount,
+        droppedCount: request.evaluationSnapshot.droppedCount,
       ),
     );
 
@@ -109,7 +123,11 @@ final class HttpEventReporter implements EventReporter {
         'instanceId': request.instanceId,
         'metaContext': request.metaContext.toJson(),
         if (request.context != null) 'context': request.context!.toJson(),
-        'discreteEvents': const <String, Object?>{},
+        'discreteEvents': {
+          'trackedEvents': [
+            for (final entry in request.trackedEventEntries) entry.toJson(),
+          ],
+        },
         'aggregatedEvents': {
           'evaluatedConfig': [
             for (final event in aggregated) event.toJson((e) => e.toJson()),
@@ -119,7 +137,9 @@ final class HttpEventReporter implements EventReporter {
               entry.toJson((submission) => submission.toJson()),
           ],
         },
-        'droppedEvents': {'evaluatedConfig': request.snapshot.droppedCount},
+        'droppedEvents': {
+          'evaluatedConfig': request.evaluationSnapshot.droppedCount,
+        },
       }),
     );
 
@@ -155,12 +175,18 @@ final class HttpEventReporter implements EventReporter {
     }
 
     final status = response.statusCode;
-    if (isStatusFatal(status)) {
+    if (_isReportStatusFatal(status)) {
       _logger.warn(
         '[EventReporter] Received a fatal status response ($status) from the '
         'telemetry endpoint. No more telemetry data will be sent.',
       );
       return const ReporterResponse.failed(fatalError: true);
+    }
+    if (status == _reportTooLargeStatus) {
+      _logger.warn(
+        '[EventReporter] The telemetry endpoint responded with status '
+        '$status. The events in this report were discarded.',
+      );
     }
 
     return status >= 200 && status < 300
@@ -174,4 +200,7 @@ final class HttpEventReporter implements EventReporter {
       _httpClient.close();
     }
   }
+
+  static bool _isReportStatusFatal(int status) =>
+      isStatusFatal(status) && status != _reportTooLargeStatus;
 }

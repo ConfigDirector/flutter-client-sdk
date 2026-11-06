@@ -273,6 +273,33 @@ final class ConfigDirectorContext {
       'anonymous: $anonymous)';
 }
 
+/// A value in the details of a tracked event: a string, a number, a boolean, or
+/// a list or map of such values.
+///
+/// A `DateTime` is sent as ISO 8601 text, an object with a `toJson` method as
+/// what that method returns, and a number that is not finite as `null`. Details
+/// holding any other value are left out and the event is still reported.
+typedef TrackedEventDetailValue = Object?;
+
+/// Details of a tracked event, such as the plan a customer chose. Details with
+/// more than 20 top-level keys, or larger than 1 KB as JSON, are left out and
+/// the event is still reported.
+typedef TrackedEventDetails = Map<String, TrackedEventDetailValue>;
+
+/// What a tracked event carries besides its name.
+@immutable
+final class TrackOptions {
+  const TrackOptions({this.value, this.details});
+
+  /// A number the event measures, such as an amount of money, a count or a
+  /// duration. A value that is not a finite number is left out and the event is
+  /// still reported.
+  final num? value;
+
+  /// Details of the event.
+  final TrackedEventDetails? details;
+}
+
 /// Metadata about your application. Including these values lets you write
 /// targeting rules against them.
 ///

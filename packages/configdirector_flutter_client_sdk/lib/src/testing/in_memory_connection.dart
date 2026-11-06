@@ -8,9 +8,10 @@ import '../client_session.dart';
 import '../lifecycle.dart';
 import '../logger.dart';
 import '../native_value_encoder.dart';
-import '../telemetry/discarding_telemetry_client.dart';
 import '../transport/transport.dart';
 import '../types.dart';
+import 'recording_telemetry_client.dart';
+import 'tracked_event.dart';
 
 const String _placeholderSdkKey = 'test-client';
 const String _environmentId = 'test-environment';
@@ -25,7 +26,8 @@ final class InMemoryConnection {
     Map<String, Object?> values = const {},
     Duration? timeout,
     ConfigDirectorLogger? logger,
-  }) : _values = encodeNativeValues(values) {
+  }) : _values = encodeNativeValues(values),
+       _logger = logger ?? ConsoleLogger() {
     _client = DefaultConfigDirectorClient(
       _placeholderSdkKey,
       options: ConfigDirectorClientOptions(
@@ -34,21 +36,22 @@ final class InMemoryConnection {
           timeout: timeout ?? const ConnectionOptions().timeout,
         ),
         caching: const CachingOptions(enabled: false),
-        logger: logger,
+        logger: _logger,
       ),
-      transportFactory: (options) {
-        _logger = options.logger;
-        return _InMemoryTransport(this);
-      },
+      transportFactory: (_) => _InMemoryTransport(this),
       lifecycleWatcher: const NoLifecycleWatcher(),
       appInfoResolver: () async => const ConfigDirectorMetaContext(),
-      telemetryClient: const DiscardingTelemetryClient(),
+      telemetryClient: _telemetry,
       clientSession: ClientSession.provisional(),
     );
   }
 
+  final ConfigDirectorLogger _logger;
+
+  late final RecordingTelemetryClient _telemetry = RecordingTelemetryClient(
+    _logger,
+  );
   late final DefaultConfigDirectorClient _client;
-  late final ConfigDirectorLogger _logger;
 
   final StreamController<ConfigSet> _configSets =
       StreamController<ConfigSet>.broadcast();
@@ -61,6 +64,8 @@ final class InMemoryConnection {
   bool _connected = false;
 
   ConfigDirectorClient get client => _client;
+
+  List<TrackedEvent> get trackedEvents => _telemetry.trackedEvents;
 
   List<ConfigDirectorContext> get contextUpdates =>
       List.unmodifiable(_contextUpdates);

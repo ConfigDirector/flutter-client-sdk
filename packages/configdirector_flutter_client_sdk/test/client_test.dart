@@ -2806,13 +2806,26 @@ void main() {
       );
       await client.initialize(ConfigDirectorContext(id: 'user-1'));
       client.getValue('new-checkout', false);
+      client.track('checkout-completed');
       await client.updateContext(ConfigDirectorContext(id: 'user-2'));
 
       client.dispose();
 
       expect(telemetry.events, isEmpty);
+      expect(telemetry.trackedEventAdmissions, isEmpty);
       expect(telemetry.contextUpdates, isEmpty);
       expect(telemetry.closeCount, 0);
+    });
+
+    test('logs no warning for an event tracked in offline mode that would not '
+        'be reported', () async {
+      final client = createOfflineClient();
+      await client.initialize();
+
+      client.track('');
+      client.track('checkout-completed', const TrackOptions(value: double.nan));
+
+      expect(logger.warnings, isEmpty);
     });
 
     test('does not follow the app lifecycle', () {

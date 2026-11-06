@@ -322,6 +322,100 @@ void main() {
     },
   );
 
+  test('forwards an OpenFeature track call to the client with its value and '
+      'attributes', () async {
+    await api.setProviderAndWait(provider);
+
+    api.getClient().track(
+      'checkout-completed',
+      details: TrackingEventDetails(
+        value: 49.9,
+        attributes: {'plan': 'pro', 'seats': 3},
+      ),
+    );
+
+    expect(configDirectorClient.trackCalls, [
+      {
+        'eventName': 'checkout-completed',
+        'value': 49.9,
+        'details': {'plan': 'pro', 'seats': 3},
+      },
+    ]);
+  });
+
+  test('records an OpenFeature track call on a real client for the context the '
+      'client has', () async {
+    final testClient = createTestClient();
+    await api.setEvaluationContextAndWait(
+      EvaluationContext(targetingKey: 'user-123'),
+    );
+    await api.setProviderAndWait(providerForClient(testClient.client));
+
+    api.getClient().track(
+      'checkout-completed',
+      details: TrackingEventDetails(value: 49.9, attributes: {'plan': 'pro'}),
+    );
+
+    expect(testClient.trackedEvents, [
+      const TrackedEvent(
+        name: 'checkout-completed',
+        context: ConfigDirectorContext(id: 'user-123'),
+        value: 49.9,
+        details: {'plan': 'pro'},
+      ),
+    ]);
+  });
+
+  test('tracks for the context the client has until a context change takes '
+      'effect', () async {
+    final testClient = createTestClient();
+    await api.setEvaluationContextAndWait(
+      EvaluationContext(targetingKey: 'user-1'),
+    );
+    await api.setProviderAndWait(providerForClient(testClient.client));
+    testClient.holdContextUpdate();
+
+    final contextChange = api.setEvaluationContextAndWait(
+      EvaluationContext(targetingKey: 'user-2'),
+    );
+    await pumpEventQueue();
+    api.getClient().track('during-the-context-change');
+    testClient.completeContextUpdate();
+    await contextChange;
+    api.getClient().track('after-the-context-change');
+
+    expect(testClient.trackedEvents, [
+      const TrackedEvent(
+        name: 'during-the-context-change',
+        context: ConfigDirectorContext(id: 'user-1'),
+      ),
+      const TrackedEvent(
+        name: 'after-the-context-change',
+        context: ConfigDirectorContext(id: 'user-2'),
+      ),
+    ]);
+  });
+
+  test('sends a DateTime attribute as ISO 8601 text', () async {
+    final testClient = createTestClient();
+    await api.setProviderAndWait(providerForClient(testClient.client));
+
+    api.getClient().track(
+      'checkout-completed',
+      details: TrackingEventDetails(
+        attributes: {'renewsAt': DateTime.utc(2027, 1, 2, 3, 4, 5)},
+      ),
+    );
+
+    expect(testClient.trackedEvents, [
+      const TrackedEvent(
+        name: 'checkout-completed',
+        context: ConfigDirectorContext(),
+        details: {'renewsAt': '2027-01-02T03:04:05.000Z'},
+      ),
+    ]);
+  });
+
   test('disposes of the client when OpenFeature shuts down', () async {
     await api.setProviderAndWait(provider);
 

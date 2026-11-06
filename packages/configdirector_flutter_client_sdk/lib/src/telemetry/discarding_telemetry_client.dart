@@ -1,6 +1,7 @@
 import '../types.dart';
 import 'telemetry_client.dart';
 import 'telemetry_events.dart';
+import 'tracked_events.dart';
 
 final class DiscardingTelemetryClient implements TelemetryClient {
   const DiscardingTelemetryClient();
@@ -10,6 +11,12 @@ final class DiscardingTelemetryClient implements TelemetryClient {
 
   @override
   void recordInvalidContextSubmission(String contextKindSample) {}
+
+  @override
+  void trackedEvent(
+    TrackedEventAdmission admission,
+    ConfigDirectorContext? context,
+  ) {}
 
   @override
   Future<void> updateContext(ConfigDirectorContext? context) async {}

@@ -25,6 +25,7 @@ void main() {
   late FakeLifecycleWatcher lifecycleWatcher;
   late RecordingLogger logger;
   late Completer<Map<String, Object?>> reported;
+  late String firstReportBody;
 
   setUp(() async {
     transport = FakeTransport();
@@ -36,9 +37,9 @@ void main() {
     unawaited(
       server.forEach((request) async {
         if (!reported.isCompleted) {
+          firstReportBody = await utf8.decodeStream(request);
           reported.complete(
-            jsonDecode(await utf8.decodeStream(request))
-                as Map<String, Object?>,
+            jsonDecode(firstReportBody) as Map<String, Object?>,
           );
         }
         request.response.statusCode = 202;
@@ -186,6 +187,36 @@ void main() {
       'shareId': '66666666-6666-4666-8666-666666666666',
       'variationId': '88888888-8888-4888-8888-888888888888',
     });
+  });
+
+  test('reports a tracked event in the bytes its details were measured '
+      'in', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+    );
+
+    final initialization = client.initialize(
+      const ConfigDirectorContext(id: 'user-123'),
+    );
+    transport.emitConfigSet(configSet(configs: const {}));
+    await initialization;
+
+    client.track(
+      'checkout-completed',
+      const TrackOptions(value: 49.9, details: {'plan': 'prémium', 'seats': 3}),
+    );
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    await reported.future.timeout(const Duration(seconds: 10));
+
+    expect(
+      firstReportBody,
+      contains(
+        '"trackedEvents":[{"name":"checkout-completed","contextKind":"user",'
+        '"contextIdentifier":"user-123","value":49.9,'
+        '"details":{"plan":"prémium","seats":3},"happenedAt":"',
+      ),
+    );
   });
 
   test('reports a context ignored for its invalid context kind without the '

@@ -11,6 +11,28 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   variation that was served. It is `null` when the config has no variations or the in-code default
   value is returned, and an unnamed variation has a `null` `name`. The new `Variation` class is
   exported.
+- `track(eventName, [options])` on the client reports to ConfigDirector that something happened for
+  the current context, such as a completed checkout, so ConfigDirector can show it on the live feed
+  and count it for each variation of a running experiment. `options` is a `TrackOptions` with a
+  `value`, an `int` or a `double` such as an amount of money, a count or a duration, and `details`, a
+  map whose values are strings, numbers, booleans, or nested maps and lists. The new `TrackOptions`,
+  `TrackedEventDetails` and `TrackedEventDetailValue` types are exported.
+- An event counts for an experiment only when the client's context has an `id`, the one the
+  experiment's config was evaluated for. Before the client has a context, or for a context without
+  an `id`, the event is still reported. The `id` of a context marked `anonymous` is not sent.
+- Tracked events are sent with the next telemetry batch, at most 1,000 per batch; events beyond that
+  are not reported. An event whose name does not have 1 to 150 characters is not reported. Details
+  with more than 20 top-level keys, larger than 1 KB as JSON, or holding a value with no JSON form,
+  and a `value` that is not a finite number, are left out and the event is still reported. Each of
+  these logs one warning per telemetry batch. A `DateTime` inside details is sent as ISO 8601 text
+  and a number that is not finite as `null`. `track` never throws, and does nothing in offline mode.
+- The test client from `testing.dart` records the events the code under test tracked in
+  `testClient.trackedEvents`, in call order, as `TrackedEvent(name, context, value, details)`. An
+  event whose name the SDK would not report is not recorded, and a value or details the SDK would
+  leave out are missing from the record. The limit of 1,000 events per telemetry batch does not apply
+  to the record. The list stays the same for the life of the test client and `replaceValues` leaves
+  it alone, so a shared test client clears it with `trackedEvents.clear()`. The new `TrackedEvent`
+  class is exported from `testing.dart`.
 
 ### Changed
 
@@ -22,6 +44,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   never returns it, but a `switch` that lists every `EvaluationReason` needs a case for it.
   `configdirector_openfeature_flutter_provider` up to 0.1.0-beta.7 has such a `switch` and does not
   compile against this version, so upgrade the provider along with the SDK.
+- `ConfigDirectorClient` has a new method, `track`, so a class of your own that implements it, such
+  as a fake in your tests, needs it too.
+
+### Fixed
+
+- A telemetry report larger than ConfigDirector accepts is now discarded with a warning, and the next
+  report is still sent. Before, the SDK stopped sending telemetry until the app restarted.
 
 ## [1.7.2] - 2026-11-01
 

@@ -25,7 +25,10 @@ library;
 import 'src/client/config_director_client.dart';
 import 'src/logger.dart';
 import 'src/testing/in_memory_connection.dart';
+import 'src/testing/tracked_event.dart';
 import 'src/types.dart';
+
+export 'src/testing/tracked_event.dart';
 
 /// Creates a [TestClient] holding a real [ConfigDirectorClient] that serves
 /// [values] without a network connection.
@@ -40,7 +43,9 @@ import 'src/types.dart';
 /// [timeout] is the client's connection timeout, which bounds how long a held
 /// `initialize` or `updateContext` waits. It defaults to the SDK's production
 /// timeout. [logger] is the logger the client uses, defaulting to the SDK's
-/// console logger.
+/// console logger. Since the test client sends no telemetry, every tracked event
+/// that is not recorded as it was tracked logs a warning, rather than each cause
+/// once per telemetry batch.
 ///
 /// The client starts uninitialized, like a production client, so the code under
 /// test can own the call to `initialize`. With nothing held or failed,
@@ -74,6 +79,17 @@ final class TestClient {
   /// does a call whose context has an invalid context kind, since the client
   /// connects without it. `resumeNetwork` is not recorded.
   List<ConfigDirectorContext> get contextUpdates => _connection.contextUpdates;
+
+  /// Every event the code under test tracked through the client, in call order,
+  /// with the context the client had at that moment, as the SDK would report
+  /// it: an event whose name does not have 1 to 150 characters is not recorded,
+  /// and a value or details the SDK would leave out are missing from the
+  /// record. The limit of 1,000 events per telemetry batch does not apply.
+  ///
+  /// This is one list for the life of the test client and [replaceValues] leaves
+  /// it alone, so a test client shared across tests clears it with
+  /// `trackedEvents.clear()`.
+  List<TrackedEvent> get trackedEvents => _connection.trackedEvents;
 
   /// Stores [value] under [key] and, once the client is connected, delivers an
   /// update carrying only [key]. See [createTestClient] for the accepted

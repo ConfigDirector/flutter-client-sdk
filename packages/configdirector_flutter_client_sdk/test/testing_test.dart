@@ -809,6 +809,258 @@ void main() {
     });
   });
 
+  group('tracked events', () {
+    test('records events in call order with their context, value and '
+        'details', () async {
+      final testClient = create(logger: logger);
+      await testClient.client.initialize(_userA);
+
+      testClient.client.track('checkout-started');
+      testClient.client.track(
+        'checkout-completed',
+        const TrackOptions(value: 49.9, details: {'plan': 'pro', 'seats': 3}),
+      );
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'checkout-started', context: _userA),
+        const TrackedEvent(
+          name: 'checkout-completed',
+          context: _userA,
+          value: 49.9,
+          details: {'plan': 'pro', 'seats': 3},
+        ),
+      ]);
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('records the context the client had when each event was '
+        'tracked', () async {
+      final testClient = create();
+      testClient.client.track('before-initialize');
+      await testClient.client.initialize(_userA);
+      testClient.client.track('for-user-a');
+      await testClient.client.updateContext(_userB);
+      testClient.client.track('for-user-b');
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'before-initialize'),
+        const TrackedEvent(name: 'for-user-a', context: _userA),
+        const TrackedEvent(name: 'for-user-b', context: _userB),
+      ]);
+    });
+
+    test('records a context marked anonymous as it was given', () async {
+      const anonymous = ConfigDirectorContext(id: 'user-a', anonymous: true);
+      final testClient = create();
+      await testClient.client.initialize(anonymous);
+
+      testClient.client.track('checkout-completed');
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'checkout-completed', context: anonymous),
+      ]);
+    });
+
+    test('records no context after one with an invalid kind was '
+        'ignored', () async {
+      final testClient = create(logger: logger);
+      await testClient.client.initialize(
+        const ConfigDirectorContext(id: 'device-42', kind: 'Device'),
+      );
+
+      testClient.client.track('firmware-updated');
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'firmware-updated'),
+      ]);
+    });
+
+    test('does not record an event whose name has 151 characters and logs a '
+        'warning', () {
+      final testClient = create(logger: logger);
+
+      testClient.client.track('n' * 151);
+
+      expect(testClient.trackedEvents, isEmpty);
+      expect(logger.warnings, hasLength(1));
+    });
+
+    test('leaves oversized details out of the record and logs a '
+        'warning', () {
+      final testClient = create(logger: logger);
+
+      testClient.client.track(
+        'checkout-completed',
+        TrackOptions(details: {'k': 'p' * 1017}),
+      );
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'checkout-completed'),
+      ]);
+      expect(logger.warnings, hasLength(1));
+    });
+
+    test('leaves a value that is not finite out of the record and logs a '
+        'warning', () {
+      final testClient = create(logger: logger);
+
+      testClient.client.track(
+        'checkout-completed',
+        const TrackOptions(value: double.nan),
+      );
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'checkout-completed'),
+      ]);
+      expect(logger.warnings, hasLength(1));
+    });
+
+    test('logs a warning for every event not recorded as it was tracked, '
+        'since no telemetry batch is sent', () {
+      final testClient = create(logger: logger);
+
+      testClient.client.track('');
+      testClient.client.track('');
+
+      expect(logger.warnings, hasLength(2));
+    });
+
+    test('does not apply the limit of one telemetry batch', () {
+      final testClient = create(logger: logger);
+
+      for (var index = 1; index <= 1001; index += 1) {
+        testClient.client.track('event-$index');
+      }
+
+      expect(testClient.trackedEvents, hasLength(1001));
+      expect(logger.warnings, isEmpty);
+    });
+
+    test('records the details as they were when the event was '
+        'tracked', () {
+      final testClient = create();
+      final details = <String, Object?>{'plan': 'pro'};
+
+      testClient.client.track(
+        'checkout-completed',
+        TrackOptions(details: details),
+      );
+      details['plan'] = 'enterprise';
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(
+          name: 'checkout-completed',
+          details: {'plan': 'pro'},
+        ),
+      ]);
+    });
+
+    test('records a DateTime in details as the text the SDK sends', () {
+      final testClient = create();
+
+      testClient.client.track(
+        'checkout-completed',
+        TrackOptions(details: {'renewsAt': DateTime.utc(2027, 1, 2, 3, 4, 5)}),
+      );
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(
+          name: 'checkout-completed',
+          details: {'renewsAt': '2027-01-02T03:04:05.000Z'},
+        ),
+      ]);
+    });
+
+    test('keeps one list that later events are added to', () {
+      final testClient = create();
+      final trackedEvents = testClient.trackedEvents;
+
+      testClient.client.track('checkout-completed');
+
+      expect(trackedEvents, [const TrackedEvent(name: 'checkout-completed')]);
+    });
+
+    test('replaceValues leaves the record alone', () {
+      final testClient = create();
+      testClient.client.track('checkout-completed');
+
+      testClient.replaceValues({'flag': true});
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'checkout-completed'),
+      ]);
+    });
+
+    test('clearing the list resets the record of a shared test client', () {
+      final testClient = create();
+      testClient.client.track('from-an-earlier-test');
+
+      testClient.trackedEvents.clear();
+      testClient.client.track('from-this-test');
+
+      expect(testClient.trackedEvents, [
+        const TrackedEvent(name: 'from-this-test'),
+      ]);
+    });
+
+    test('two tracked events compare equal when their details are '
+        'structurally equal', () {
+      final first = TrackedEvent(
+        name: 'checkout-completed',
+        details: {
+          'addons': ['sso'],
+        },
+      );
+      final second = TrackedEvent(
+        name: 'checkout-completed',
+        details: {
+          'addons': ['sso'],
+        },
+      );
+
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+    });
+
+    test('two tracked events differ when their details differ', () {
+      final first = TrackedEvent(
+        name: 'checkout-completed',
+        details: {
+          'addons': ['sso'],
+        },
+      );
+      final second = TrackedEvent(
+        name: 'checkout-completed',
+        details: {
+          'addons': ['audit'],
+        },
+      );
+
+      expect(first, isNot(second));
+    });
+
+    test('two tracked events differ when their names differ', () {
+      expect(
+        const TrackedEvent(name: 'first'),
+        isNot(const TrackedEvent(name: 'second')),
+      );
+    });
+
+    test('two tracked events differ when their contexts differ', () {
+      expect(
+        const TrackedEvent(name: 'checkout-completed', context: _userA),
+        isNot(const TrackedEvent(name: 'checkout-completed', context: _userB)),
+      );
+    });
+
+    test('two tracked events differ when their values differ', () {
+      expect(
+        const TrackedEvent(name: 'checkout-completed', value: 1),
+        isNot(const TrackedEvent(name: 'checkout-completed', value: 2)),
+      );
+    });
+  });
+
   group('after dispose', () {
     test('S14 the controls are silent no-ops', () async {
       final testClient = create(values: {'flag': true});

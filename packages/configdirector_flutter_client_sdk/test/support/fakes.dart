@@ -8,6 +8,7 @@ import 'package:configdirector_flutter_client_sdk/src/logger.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/event_reporter.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_client.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_events.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/tracked_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter/widgets.dart';
@@ -99,6 +100,7 @@ final class FakeLifecycleWatcher implements AppLifecycleWatcher {
 final class FakeTelemetryClient implements TelemetryClient {
   final List<EvaluatedConfigEvent> events = [];
   final List<String> invalidContextSubmissions = [];
+  final List<TrackedEventAdmission> trackedEventAdmissions = [];
   final List<ConfigDirectorContext?> contextUpdates = [];
   int flushCount = 0;
   int closeCount = 0;
@@ -109,6 +111,12 @@ final class FakeTelemetryClient implements TelemetryClient {
   @override
   void recordInvalidContextSubmission(String contextKindSample) =>
       invalidContextSubmissions.add(contextKindSample);
+
+  @override
+  void trackedEvent(
+    TrackedEventAdmission admission,
+    ConfigDirectorContext? context,
+  ) => trackedEventAdmissions.add(admission);
 
   @override
   Future<void> updateContext(ConfigDirectorContext? context) async =>

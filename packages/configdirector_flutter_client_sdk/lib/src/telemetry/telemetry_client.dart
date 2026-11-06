@@ -1,5 +1,6 @@
 import '../types.dart';
 import 'telemetry_events.dart';
+import 'tracked_events.dart';
 
 /// Collects what the SDK reports back to ConfigDirector.
 ///
@@ -10,6 +11,11 @@ abstract interface class TelemetryClient {
   void evaluatedConfig(EvaluatedConfigEvent event);
 
   void recordInvalidContextSubmission(String contextKindSample);
+
+  void trackedEvent(
+    TrackedEventAdmission admission,
+    ConfigDirectorContext? context,
+  );
 
   /// Reports the events collected so far against the previous context, and
   /// attributes the ones collected from now on to [context].

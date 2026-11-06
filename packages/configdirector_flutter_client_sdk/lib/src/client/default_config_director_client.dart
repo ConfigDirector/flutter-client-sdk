@@ -21,6 +21,7 @@ import '../telemetry/reporter_factory.dart';
 import '../telemetry/telemetry_client.dart';
 import '../telemetry/telemetry_event_collector.dart';
 import '../telemetry/telemetry_events.dart';
+import '../telemetry/tracked_events.dart';
 import '../transport/offline_transport.dart';
 import '../transport/polling_transport.dart';
 import '../transport/streaming_transport.dart';
@@ -356,6 +357,20 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     for (final configKey in _watchers.keys.toList(growable: false)) {
       unwatch(configKey);
     }
+  }
+
+  @override
+  void track(String eventName, [TrackOptions? options]) {
+    final context = _currentContext;
+    _telemetry.trackedEvent(
+      admitTrackedEvent(
+        name: eventName,
+        context: context,
+        options: options,
+        happenedAt: DateTime.now(),
+      ),
+      context,
+    );
   }
 
   @override

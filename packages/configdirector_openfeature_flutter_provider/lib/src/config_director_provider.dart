@@ -83,6 +83,32 @@ import 'resolution.dart';
 /// carrying the keys of the configs in the update followed by the keys of
 /// configs a full update removed.
 ///
+/// ## Tracking
+///
+/// A `track` call on an OpenFeature client reports to ConfigDirector that
+/// something happened, such as a completed checkout, so it can be counted:
+///
+/// ```dart
+/// client.track(
+///   'checkout-completed',
+///   details: TrackingEventDetails(value: 49.9, attributes: {'plan': 'pro'}),
+/// );
+/// ```
+///
+/// The details' `value` is sent as the event's value and their attributes as
+/// the event's details. Like a flag resolution, the event goes with the context
+/// the underlying client currently has, not the one handed to the call. It
+/// counts for an experiment only when that context has an `id`, the one the
+/// experiment's flag was resolved for; without one the event is still reported,
+/// and the `id` of a context marked `anonymous` is not sent.
+///
+/// Events are sent with the next telemetry batch, at most 1,000 per batch;
+/// events beyond that are not reported, and neither is an event whose name does
+/// not have 1 to 150 characters. Attributes with more than 20 top-level keys or
+/// larger than 1 KB as JSON, and a `value` that is not a finite number, are left
+/// out and the event is still reported. Each of these logs one warning per
+/// telemetry batch. In [ConnectionMode.offline] a `track` call does nothing.
+///
 /// ## Offline mode
 ///
 /// With [ConnectionMode.offline] the provider never connects and resolves
@@ -102,7 +128,8 @@ final class ConfigDirectorProvider
         InitializableProvider,
         ContextReconciliationProvider,
         ShutdownProvider,
-        ProviderEventSource {
+        ProviderEventSource,
+        TrackingProvider {
   /// Creates a provider for [clientSdkKey], the client SDK key from the
   /// ConfigDirector dashboard.
   ///
@@ -239,6 +266,22 @@ final class ConfigDirectorProvider
     Map<String, Object?> defaultValue,
     EvaluationContext context,
   ) => _resolve(flagKey, defaultValue);
+
+  @override
+  void track(
+    String trackingEventName,
+    EvaluationContext context, {
+    TrackingEventDetails? details,
+  }) {
+    final attributes = details?.attributes;
+    _client.track(
+      trackingEventName,
+      TrackOptions(
+        value: details?.value,
+        details: attributes == null || attributes.isEmpty ? null : attributes,
+      ),
+    );
+  }
 
   ResolutionDetails<T> _resolve<T extends Object>(
     String flagKey,

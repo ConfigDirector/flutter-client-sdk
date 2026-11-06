@@ -5,6 +5,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The provider now implements OpenFeature's tracking. `client.track(name, details: details)` reports
+  to ConfigDirector that something happened, such as a completed checkout, so ConfigDirector can show
+  it on the live feed and count it for each variation of a running experiment. Before, a `track` call
+  did nothing. The details' `value` is sent as the event's value and their attributes as the event's
+  details. The event goes with the context the underlying client currently has, not the one handed to
+  the call, as flag resolutions do.
+- An event counts for an experiment only when that context has a `targetingKey` or `id`, the one the
+  experiment's flag was resolved for. Without one, the event is still reported. The identifier of a
+  context marked `anonymous` is not sent.
+- Tracked events are sent with the next telemetry batch, at most 1,000 per batch; events beyond that
+  are not reported. An event whose name does not have 1 to 150 characters is not reported. Attributes
+  with more than 20 top-level keys or larger than 1 KB as JSON, and a `value` that is not a finite
+  number, are left out and the event is still reported. Each of these logs one warning per telemetry
+  batch. A `DateTime` attribute is sent as ISO 8601 text and a number that is not finite as `null`.
+  `track` never throws, and does nothing in offline mode.
+
 ### Changed
 
 - The `variant` in evaluation details is now the variation's name when the config has variations
@@ -14,6 +32,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The evaluation counts the provider sends to ConfigDirector now say which variation was served, and
   which percentage rollout and share served it, so ConfigDirector can count the contexts each
   variation of an experiment reached. This holds for values kept on the device as well.
+
+### Fixed
+
+- A telemetry report larger than ConfigDirector accepts is now discarded with a warning, and the next
+  report is still sent. Before, the provider stopped sending telemetry until the app restarted.
 
 ## [0.1.0-beta.7] - 2026-11-01
 

@@ -22,6 +22,7 @@ void main() {
       testClient.setValue('flag', false);
       await pumpEventQueue();
       expect(client.getValue('flag', true), isFalse);
+      client.track('checkout-completed');
       client.dispose();
       await pumpEventQueue();
     }, createHttpClient: (_) => _RecordingHttpClient(httpClients.add));

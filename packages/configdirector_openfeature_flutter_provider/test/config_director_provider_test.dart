@@ -477,6 +477,82 @@ void main() {
     });
   });
 
+  group('track', () {
+    test('forwards the event name, value and attributes to the client', () {
+      provider.track(
+        'checkout-completed',
+        EvaluationContext.empty,
+        details: TrackingEventDetails(
+          value: 49.9,
+          attributes: {'plan': 'pro', 'seats': 3},
+        ),
+      );
+
+      expect(client.trackCalls, [
+        {
+          'eventName': 'checkout-completed',
+          'value': 49.9,
+          'details': {'plan': 'pro', 'seats': 3},
+        },
+      ]);
+    });
+
+    test('forwards an event without details with no value or details', () {
+      provider.track('checkout-completed', EvaluationContext.empty);
+
+      expect(client.trackCalls, [
+        {'eventName': 'checkout-completed', 'value': null, 'details': null},
+      ]);
+    });
+
+    test('forwards a value without attributes with no details', () {
+      provider.track(
+        'checkout-completed',
+        EvaluationContext.empty,
+        details: TrackingEventDetails(value: 3),
+      );
+
+      expect(client.trackCalls, [
+        {'eventName': 'checkout-completed', 'value': 3, 'details': null},
+      ]);
+    });
+
+    test('forwards attributes without a value with no value', () {
+      provider.track(
+        'checkout-completed',
+        EvaluationContext.empty,
+        details: TrackingEventDetails(attributes: {'plan': 'pro'}),
+      );
+
+      expect(client.trackCalls, [
+        {
+          'eventName': 'checkout-completed',
+          'value': null,
+          'details': {'plan': 'pro'},
+        },
+      ]);
+    });
+
+    test('forwards an attribute named value as a detail', () {
+      provider.track(
+        'checkout-completed',
+        EvaluationContext.empty,
+        details: TrackingEventDetails(
+          value: 49.9,
+          attributes: {'value': 'high'},
+        ),
+      );
+
+      expect(client.trackCalls, [
+        {
+          'eventName': 'checkout-completed',
+          'value': 49.9,
+          'details': {'value': 'high'},
+        },
+      ]);
+    });
+  });
+
   group('shutdown', () {
     test('disposes of the client', () async {
       await provider.shutdown();

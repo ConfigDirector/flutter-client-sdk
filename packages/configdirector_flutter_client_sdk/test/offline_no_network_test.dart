@@ -42,6 +42,7 @@ void main() {
 
       await client.initialize(ConfigDirectorContext(id: 'user-1'));
       client.getValue('new-checkout', false);
+      client.track('checkout-completed');
       await client.updateContext(ConfigDirectorContext(id: 'user-2'));
       client.pauseNetwork();
       await client.resumeNetwork();
