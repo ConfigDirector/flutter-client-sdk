@@ -1,3 +1,0 @@
-dependency_overrides:
-  configdirector_flutter_client_sdk:
-    path: ../configdirector_flutter_client_sdk

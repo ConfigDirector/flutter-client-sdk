@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.8] - 2026-11-06
+
 ### Added
 
 - The provider now implements OpenFeature's tracking. `client.track(name, details: details)` reports
@@ -25,6 +27,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Requires version 1.8.0 of `configdirector_flutter_client_sdk`, which adds the variation to
+  evaluations and `track`. Provider 0.1.0-beta.7 does not compile against that version, so an app on
+  it that picked up the new SDK needs this provider to build again.
 - The `variant` in evaluation details is now the variation's name when the config has variations
   and the variation served has a name, such as `treatment`. Before, it was always the value id. It
   stays the value id for a config without variations and for an unnamed variation. If you send
