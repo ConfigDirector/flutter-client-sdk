@@ -17,6 +17,12 @@ which is in beta. Until that goes stable the provider is published as a pre-rele
 beta for each OpenFeature beta it is built against. It depends on the *published* client SDK, the
 way a consumer does, and needs Dart 3.12.2, so Flutter 3.44.2 or later.
 
+While the provider needs a client SDK change that is not on pub.dev yet, it and its sample app each
+carry a `pubspec_overrides.yaml` pointing at the client SDK in this repository, so `pub get`, CI and
+the pre-push hook build them against that change. Preparing the provider's release deletes both
+files in the commit that raises its client SDK floor. `pub publish` only prints a hint when they are
+left behind, so nothing else catches them.
+
 The provider reports itself to the server as `flutter-openfeature-client-provider`, at the
 version in its `lib/src/constants.dart`, which `dart run tool/update_sdk_version.dart` keeps in
 step with its pubspec the same way as the client SDK's.

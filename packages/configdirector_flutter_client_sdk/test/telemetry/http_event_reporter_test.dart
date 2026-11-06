@@ -23,6 +23,9 @@ EvaluatedConfigEvent evaluation({
   bool usedDefault = false,
   EvaluationReason reason = EvaluationReason.foundMatch,
   String? contextId,
+  String? ruleId,
+  String? shareId,
+  String? variationId,
 }) => EvaluatedConfigEvent.fromEvaluation(
   contextId: contextId,
   key: key,
@@ -33,6 +36,9 @@ EvaluatedConfigEvent evaluation({
   requestedType: requestedType,
   usedDefault: usedDefault,
   evaluationReason: reason,
+  ruleId: ruleId,
+  shareId: shareId,
+  variationId: variationId,
 );
 
 EventReportRequest requestOf(
@@ -94,6 +100,12 @@ void main() {
 
   Map<String, Object?> bodyOf(http.Request request) =>
       jsonDecode(request.body) as Map<String, Object?>;
+
+  List<Map<String, Object?>> reportedEvaluations(http.Request request) =>
+      ((bodyOf(request)['aggregatedEvents']!
+                  as Map<String, Object?>)['evaluatedConfig']!
+              as List<Object?>)
+          .cast<Map<String, Object?>>();
 
   test('posts the report to the telemetry endpoint', () async {
     final reporter = reporterWith((_) => http.Response('', 202));
@@ -178,6 +190,172 @@ void main() {
         },
         'droppedEvents': {'evaluatedConfig': 3},
       });
+    },
+  );
+
+  test('reports the rule, share and variation of an evaluation', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    await reporter.report(
+      requestOf([
+        evaluation(
+          ruleId: '22222222-2222-4222-8222-222222222222',
+          shareId: '66666666-6666-4666-8666-666666666666',
+          variationId: '88888888-8888-4888-8888-888888888888',
+        ),
+      ]),
+    );
+
+    expect(reportedEvaluations(requests.single).single['event'], {
+      'key': 'dark-mode',
+      'type': 'boolean',
+      'defaultValue': {'value': 'false'},
+      'requestedType': 'bool',
+      'evaluatedValue': {'value': 'true'},
+      'evaluatedValueId': 'value-id',
+      'usedDefault': false,
+      'evaluationReason': 'found-match',
+      'ruleId': '22222222-2222-4222-8222-222222222222',
+      'shareId': '66666666-6666-4666-8666-666666666666',
+      'variationId': '88888888-8888-4888-8888-888888888888',
+    });
+  });
+
+  test(
+    'leaves the rule and share out of an evaluation served without a rollout',
+    () async {
+      final reporter = reporterWith((_) => http.Response('', 202));
+
+      await reporter.report(
+        requestOf([
+          evaluation(variationId: '99999999-9999-4999-8999-999999999999'),
+        ]),
+      );
+
+      final event =
+          reportedEvaluations(requests.single).single['event']!
+              as Map<String, Object?>;
+      expect(event['variationId'], '99999999-9999-4999-8999-999999999999');
+      expect(event, isNot(contains('ruleId')));
+      expect(event, isNot(contains('shareId')));
+    },
+  );
+
+  test(
+    'counts evaluations served by the same rule, share and variation together',
+    () async {
+      final reporter = reporterWith((_) => http.Response('', 202));
+
+      await reporter.report(
+        requestOf([
+          evaluation(
+            ruleId: 'rule-1',
+            shareId: 'share-1',
+            variationId: 'variation-1',
+          ),
+          evaluation(
+            ruleId: 'rule-1',
+            shareId: 'share-1',
+            variationId: 'variation-1',
+          ),
+        ]),
+      );
+
+      final reported = reportedEvaluations(requests.single);
+      expect(reported.single['count'], 2);
+      expect(reported.single['event'], containsPair('ruleId', 'rule-1'));
+      expect(reported.single['event'], containsPair('shareId', 'share-1'));
+      expect(
+        reported.single['event'],
+        containsPair('variationId', 'variation-1'),
+      );
+    },
+  );
+
+  test('counts evaluations of one value served by two rules apart', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    await reporter.report(
+      requestOf([
+        evaluation(
+          ruleId: 'rule-1',
+          shareId: 'share-1',
+          variationId: 'variation-1',
+        ),
+        evaluation(
+          ruleId: 'rule-2',
+          shareId: 'share-1',
+          variationId: 'variation-1',
+        ),
+      ]),
+    );
+
+    final reported = reportedEvaluations(requests.single);
+    expect(reported, hasLength(2));
+    expect(reported.first['count'], 1);
+    expect(reported.first['event'], containsPair('ruleId', 'rule-1'));
+    expect(reported.last['count'], 1);
+    expect(reported.last['event'], containsPair('ruleId', 'rule-2'));
+  });
+
+  test('counts evaluations of one value served by two shares apart', () async {
+    final reporter = reporterWith((_) => http.Response('', 202));
+
+    await reporter.report(
+      requestOf([
+        evaluation(
+          ruleId: 'rule-1',
+          shareId: 'share-1',
+          variationId: 'variation-1',
+        ),
+        evaluation(
+          ruleId: 'rule-1',
+          shareId: 'share-2',
+          variationId: 'variation-1',
+        ),
+      ]),
+    );
+
+    final reported = reportedEvaluations(requests.single);
+    expect(reported, hasLength(2));
+    expect(reported.first['count'], 1);
+    expect(reported.first['event'], containsPair('shareId', 'share-1'));
+    expect(reported.last['count'], 1);
+    expect(reported.last['event'], containsPair('shareId', 'share-2'));
+  });
+
+  test(
+    'counts evaluations of one value served as two variations apart',
+    () async {
+      final reporter = reporterWith((_) => http.Response('', 202));
+
+      await reporter.report(
+        requestOf([
+          evaluation(
+            ruleId: 'rule-1',
+            shareId: 'share-1',
+            variationId: 'variation-1',
+          ),
+          evaluation(
+            ruleId: 'rule-1',
+            shareId: 'share-1',
+            variationId: 'variation-2',
+          ),
+        ]),
+      );
+
+      final reported = reportedEvaluations(requests.single);
+      expect(reported, hasLength(2));
+      expect(reported.first['count'], 1);
+      expect(
+        reported.first['event'],
+        containsPair('variationId', 'variation-1'),
+      );
+      expect(reported.last['count'], 1);
+      expect(
+        reported.last['event'],
+        containsPair('variationId', 'variation-2'),
+      );
     },
   );
 

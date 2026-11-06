@@ -386,6 +386,23 @@ void main() {
       expect(details.errorCode, isNull);
     });
 
+    test('carries the variation name as the variant', () {
+      client.variations['a-string'] = const Variation(
+        id: 'variation-id',
+        name: 'treatment',
+      );
+
+      final details = provider.resolveStringValue(
+        'a-string',
+        'default',
+        EvaluationContext.empty,
+      );
+
+      expect(details.variant, 'treatment');
+      expect(details.reason, 'TARGETING_MATCH');
+      expect(details.errorCode, isNull);
+    });
+
     test('resolves a config without a value to the default', () {
       client.keysWithoutValue.add('unset');
 

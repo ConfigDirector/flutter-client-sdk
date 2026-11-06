@@ -131,6 +131,63 @@ void main() {
     });
   });
 
+  test('reports the rule, share and variation an evaluation was served '
+      'by', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+    );
+
+    final initialization = client.initialize(
+      const ConfigDirectorContext(id: 'user-123'),
+    );
+    transport.emitConfigSet(
+      ConfigSet.fromJson({
+        'kind': 'full',
+        'configs': {
+          'checkout-cta-copy': {
+            'id': '00000000-0000-0000-0000-000000000001',
+            'key': 'checkout-cta-copy',
+            'type': 'string',
+            'value': 'Try it free',
+            'valueId': 'value-id-treatment',
+            'variation': {
+              'id': '88888888-8888-4888-8888-888888888888',
+              'name': 'treatment',
+            },
+            'ruleId': '22222222-2222-4222-8222-222222222222',
+            'shareId': '66666666-6666-4666-8666-666666666666',
+          },
+        },
+      }),
+    );
+    await initialization;
+
+    client.getValue('checkout-cta-copy', 'in-code default');
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    final report = await reported.future.timeout(const Duration(seconds: 10));
+
+    final aggregated =
+        (report['aggregatedEvents']!
+                as Map<String, Object?>)['evaluatedConfig']!
+            as List<Object?>;
+    expect(aggregated.single, containsPair('count', 1));
+    expect((aggregated.single! as Map<String, Object?>)['event'], {
+      'contextId': 'user-123',
+      'key': 'checkout-cta-copy',
+      'type': 'string',
+      'defaultValue': {'value': 'in-code default'},
+      'requestedType': 'String',
+      'evaluatedValue': {'value': 'Try it free'},
+      'evaluatedValueId': 'value-id-treatment',
+      'usedDefault': false,
+      'evaluationReason': 'found-match',
+      'ruleId': '22222222-2222-4222-8222-222222222222',
+      'shareId': '66666666-6666-4666-8666-666666666666',
+      'variationId': '88888888-8888-4888-8888-888888888888',
+    });
+  });
+
   test('reports a context ignored for its invalid context kind without the '
       'context', () async {
     final client = createClient(

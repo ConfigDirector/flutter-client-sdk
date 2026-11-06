@@ -87,6 +87,16 @@ void main() {
       expect(evaluation.reason, EvaluationReason.typeMismatch);
     });
 
+    test('serves a value without a variation', () async {
+      final testClient = create(values: {'flag': true});
+      await testClient.client.initialize();
+
+      final evaluation = testClient.client.evaluate('flag', false);
+
+      expect(evaluation.value, isTrue);
+      expect(evaluation.variation, isNull);
+    });
+
     test('S3 setValue on a connected client changes the next read', () async {
       final testClient = create(values: {'flag': true});
       await testClient.client.initialize();

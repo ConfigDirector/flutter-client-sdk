@@ -82,7 +82,7 @@ final class ContextUpdatedEvent {
 final class ConfigEvaluatedEvent {
   const ConfigEvaluatedEvent(this.evaluation);
 
-  /// The value the config evaluated to, and why.
+  /// The value the config evaluated to, why, and the variation that was served.
   final ConfigEvaluation evaluation;
 
   @override

@@ -10,6 +10,30 @@ Map<String, Object?> traitsFor(String country) => {
 };
 
 void main() {
+  group('Variation', () {
+    test('compares by id and name', () {
+      final first = Variation(id: 'variation-1', name: 'treatment');
+      final second = Variation(id: 'variation-1', name: 'treatment');
+
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+    });
+
+    test('tells variations apart by id', () {
+      final first = Variation(id: 'variation-1', name: 'treatment');
+      final second = Variation(id: 'variation-2', name: 'treatment');
+
+      expect(first, isNot(second));
+    });
+
+    test('tells a named variation apart from an unnamed one', () {
+      final named = Variation(id: 'variation-1', name: 'treatment');
+      final unnamed = Variation(id: 'variation-1');
+
+      expect(named, isNot(unnamed));
+    });
+  });
+
   group('ConfigDirectorContext', () {
     test('compares nested traits by value', () {
       final a = ConfigDirectorContext(id: 'user-1', traits: traitsFor('AR'));

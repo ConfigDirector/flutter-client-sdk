@@ -5,6 +5,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `evaluate` and the `onConfigEvaluated` event now carry `variation`: the `id` and `name` of the
+  variation that was served. It is `null` when the config has no variations or the in-code default
+  value is returned, and an unnamed variation has a `null` `name`. The new `Variation` class is
+  exported.
+
+### Changed
+
+- The evaluation counts the SDK sends to ConfigDirector now say which variation was served, and
+  which percentage rollout and share served it, so ConfigDirector can count the contexts each
+  variation of an experiment reached. This holds for values kept on the device as well; values kept
+  by an earlier version carry none of this until live values arrive.
+- `EvaluationReason` gains `rolloutSkippedNoIdentifier`. Only server SDKs report it and this SDK
+  never returns it, but a `switch` that lists every `EvaluationReason` needs a case for it.
+  `configdirector_openfeature_flutter_provider` up to 0.1.0-beta.7 has such a `switch` and does not
+  compile against this version, so upgrade the provider along with the SDK.
+
 ## [1.7.2] - 2026-11-01
 
 ### Fixed

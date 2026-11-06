@@ -7,6 +7,7 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
     : values = values ?? {};
 
   final Map<String, Object> values;
+  final Map<String, Variation> variations = {};
   final Set<String> keysWithoutValue = {};
   final List<ConfigDirectorContext?> initializeCalls = [];
   final List<ConfigDirectorContext> updateContextCalls = [];
@@ -94,6 +95,7 @@ class FakeConfigDirectorClient implements ConfigDirectorClient {
       key: configKey,
       value: result,
       valueId: valueId,
+      variation: valueId == null ? null : variations[configKey],
       isDefaultValue:
           reason != EvaluationReason.foundMatch &&
           reason != EvaluationReason.cached,

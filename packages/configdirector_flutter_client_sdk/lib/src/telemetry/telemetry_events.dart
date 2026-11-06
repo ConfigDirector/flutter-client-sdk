@@ -19,6 +19,9 @@ final class EvaluatedConfigEvent {
     this.contextId,
     this.type,
     this.evaluatedValueId,
+    this.ruleId,
+    this.shareId,
+    this.variationId,
   });
 
   /// Builds the event for an evaluation of [key] that returned
@@ -33,6 +36,9 @@ final class EvaluatedConfigEvent {
     String? contextId,
     ConfigType? type,
     String? evaluatedValueId,
+    String? ruleId,
+    String? shareId,
+    String? variationId,
   }) => EvaluatedConfigEvent(
     key: key,
     defaultValue: TelemetryValue.of(defaultValue, type: type),
@@ -47,6 +53,9 @@ final class EvaluatedConfigEvent {
     contextId: contextId,
     type: type,
     evaluatedValueId: evaluatedValueId,
+    ruleId: ruleId,
+    shareId: shareId,
+    variationId: variationId,
   );
 
   /// The id of the context the config was evaluated against.
@@ -72,6 +81,9 @@ final class EvaluatedConfigEvent {
 
   final bool usedDefault;
   final EvaluationReason evaluationReason;
+  final String? ruleId;
+  final String? shareId;
+  final String? variationId;
 
   /// Returns this event with both of its values reduced to the form that is
   /// sent to the server. See [TelemetryValue.compacted].
@@ -85,6 +97,9 @@ final class EvaluatedConfigEvent {
     contextId: contextId,
     type: type,
     evaluatedValueId: evaluatedValueId,
+    ruleId: ruleId,
+    shareId: shareId,
+    variationId: variationId,
   );
 
   Map<String, Object?> toJson() => {
@@ -97,6 +112,9 @@ final class EvaluatedConfigEvent {
     if (evaluatedValueId != null) 'evaluatedValueId': evaluatedValueId,
     'usedDefault': usedDefault,
     'evaluationReason': evaluationReason.wireName,
+    if (ruleId != null) 'ruleId': ruleId,
+    if (shareId != null) 'shareId': shareId,
+    if (variationId != null) 'variationId': variationId,
   };
 
   /// Identical evaluations are reported once with a count, so equality is what
@@ -113,7 +131,10 @@ final class EvaluatedConfigEvent {
           other.evaluatedValue == evaluatedValue &&
           other.evaluatedValueId == evaluatedValueId &&
           other.usedDefault == usedDefault &&
-          other.evaluationReason == evaluationReason);
+          other.evaluationReason == evaluationReason &&
+          other.ruleId == ruleId &&
+          other.shareId == shareId &&
+          other.variationId == variationId);
 
   @override
   int get hashCode => Object.hash(
@@ -126,6 +147,9 @@ final class EvaluatedConfigEvent {
     evaluatedValueId,
     usedDefault,
     evaluationReason,
+    ruleId,
+    shareId,
+    variationId,
   );
 
   @override

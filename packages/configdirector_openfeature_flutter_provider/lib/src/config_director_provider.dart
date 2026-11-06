@@ -52,14 +52,15 @@ import 'resolution.dart';
 ///
 /// ## Resolution details
 ///
-/// A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and
-/// the served value's id as its variant; one served from the values kept on
-/// the device, before live values arrive, resolves the same way with the
-/// reason `CACHED`. One the config has no value for resolves to the default
-/// with the reason `DEFAULT`. Everything else is an
-/// error carrying the default: `flagNotFound` for an unknown key,
-/// `providerNotReady` before config state has arrived, and `typeMismatch` for
-/// a value that cannot be read as the requested type.
+/// A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and,
+/// as its variant, the name of the variation served, or the served value's id
+/// for a config without variations or an unnamed variation; one served from
+/// the values kept on the device, before live values arrive, resolves the same
+/// way with the reason `CACHED`. One the config has no value for resolves to
+/// the in-code default value with the reason `DEFAULT`. Everything else is an
+/// error carrying the in-code default value: `flagNotFound` for an unknown key,
+/// `providerNotReady` before config state has arrived, and `typeMismatch` for a
+/// value that cannot be read as the requested type.
 ///
 /// ## Provider status
 ///

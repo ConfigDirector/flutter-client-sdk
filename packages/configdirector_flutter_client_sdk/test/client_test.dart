@@ -93,6 +93,22 @@ void main() {
     ),
   );
 
+  Future<DefaultConfigDirectorClient> clientServing(
+    Map<String, Object?> configs,
+  ) async {
+    final client = createClientOverHttp(
+      ConnectionMode.polling,
+      MockClient(
+        (request) async => http.Response(
+          jsonEncode({'kind': 'full', 'configs': configs}),
+          200,
+        ),
+      ),
+    );
+    await client.initialize(const ConfigDirectorContext(id: 'user-1'));
+    return client;
+  }
+
   setUp(() {
     transport = FakeTransport();
     lifecycleWatcher = FakeLifecycleWatcher();
@@ -1053,6 +1069,193 @@ void main() {
       expect(unknown.value, 'fallback');
       expect(unknown.reason, EvaluationReason.configStateMissing);
       expect(unknown.context, const ConfigDirectorContext(id: 'user-123'));
+    });
+
+    test('returns the variation of a payload entry that has one', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Try it free',
+          'valueId': 'value-id-treatment',
+          'variation': {
+            'id': '88888888-8888-4888-8888-888888888888',
+            'name': 'treatment',
+          },
+          'ruleId': '22222222-2222-4222-8222-222222222222',
+          'shareId': '66666666-6666-4666-8666-666666666666',
+        },
+      });
+
+      final evaluation = client.evaluate(
+        'checkout-cta-copy',
+        'in-code default',
+      );
+
+      expect(evaluation.value, 'Try it free');
+      expect(evaluation.valueId, 'value-id-treatment');
+      expect(evaluation.isDefaultValue, isFalse);
+      expect(evaluation.reason, EvaluationReason.foundMatch);
+      expect(
+        evaluation.variation,
+        const Variation(
+          id: '88888888-8888-4888-8888-888888888888',
+          name: 'treatment',
+        ),
+      );
+    });
+
+    test('returns an unnamed variation with its id and no name', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Get started',
+          'valueId': 'value-id-get-started',
+          'variation': {
+            'id': '99999999-9999-4999-8999-999999999999',
+            'name': null,
+          },
+        },
+      });
+
+      final evaluation = client.evaluate(
+        'checkout-cta-copy',
+        'in-code default',
+      );
+
+      expect(evaluation.value, 'Get started');
+      expect(
+        evaluation.variation,
+        const Variation(id: '99999999-9999-4999-8999-999999999999'),
+      );
+    });
+
+    test('returns a variation whose name is empty with its id and no '
+        'name', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Get started',
+          'valueId': 'value-id-get-started',
+          'variation': {
+            'id': '99999999-9999-4999-8999-999999999999',
+            'name': '',
+          },
+        },
+      });
+
+      final evaluation = client.evaluate(
+        'checkout-cta-copy',
+        'in-code default',
+      );
+
+      expect(evaluation.value, 'Get started');
+      expect(
+        evaluation.variation,
+        const Variation(id: '99999999-9999-4999-8999-999999999999'),
+      );
+    });
+
+    test('returns no variation for a flag, whose payload entry has '
+        'none', () async {
+      final client = await clientServing({
+        'new-checkout': {
+          'id': '00000000-0000-0000-0000-000000000002',
+          'key': 'new-checkout',
+          'type': 'boolean',
+          'value': 'true',
+          'valueId': 'value-id-true',
+        },
+      });
+
+      final evaluation = client.evaluate('new-checkout', false);
+
+      expect(evaluation.value, isTrue);
+      expect(evaluation.valueId, 'value-id-true');
+      expect(evaluation.variation, isNull);
+    });
+
+    test('returns no variation for a payload entry whose variation has no '
+        'id', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Get started',
+          'valueId': 'value-id-get-started',
+          'variation': {'name': 'treatment'},
+        },
+      });
+
+      final evaluation = client.evaluate(
+        'checkout-cta-copy',
+        'in-code default',
+      );
+
+      expect(evaluation.value, 'Get started');
+      expect(evaluation.variation, isNull);
+    });
+
+    test('returns no variation with the in-code default value when the value '
+        'cannot be read as the requested type', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Try it free',
+          'valueId': 'value-id-treatment',
+          'variation': {
+            'id': '88888888-8888-4888-8888-888888888888',
+            'name': 'treatment',
+          },
+          'ruleId': '22222222-2222-4222-8222-222222222222',
+          'shareId': '66666666-6666-4666-8666-666666666666',
+        },
+      });
+
+      final evaluation = client.evaluate('checkout-cta-copy', 7);
+
+      expect(evaluation.reason, EvaluationReason.invalidNumber);
+      expect(evaluation.value, 7);
+      expect(evaluation.variation, isNull);
+    });
+
+    test('emits the variation of a payload entry that has one', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Try it free',
+          'valueId': 'value-id-treatment',
+          'variation': {
+            'id': '88888888-8888-4888-8888-888888888888',
+            'name': 'treatment',
+          },
+        },
+      });
+      final evaluations = <ConfigEvaluation>[];
+      client.onConfigEvaluated.listen(
+        (event) => evaluations.add(event.evaluation),
+      );
+
+      client.getValue('checkout-cta-copy', 'in-code default');
+      await pumpEventQueue();
+
+      expect(
+        evaluations.single.variation,
+        const Variation(
+          id: '88888888-8888-4888-8888-888888888888',
+          name: 'treatment',
+        ),
+      );
     });
 
     test('reports the client not being ready', () {
@@ -2019,6 +2222,219 @@ void main() {
       expect(event.evaluationReason, EvaluationReason.clientNotReady);
     });
 
+    test('reports the rule, share and variation a payload entry '
+        'carries', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Try it free',
+          'valueId': 'value-id-treatment',
+          'variation': {
+            'id': '88888888-8888-4888-8888-888888888888',
+            'name': 'treatment',
+          },
+          'ruleId': '22222222-2222-4222-8222-222222222222',
+          'shareId': '66666666-6666-4666-8666-666666666666',
+        },
+      });
+
+      client.getValue('checkout-cta-copy', 'in-code default');
+
+      final event = telemetry.events.single;
+      expect(event.key, 'checkout-cta-copy');
+      expect(event.evaluationReason, EvaluationReason.foundMatch);
+      expect(event.ruleId, '22222222-2222-4222-8222-222222222222');
+      expect(event.shareId, '66666666-6666-4666-8666-666666666666');
+      expect(event.variationId, '88888888-8888-4888-8888-888888888888');
+    });
+
+    test('reports the variation and no rule or share for a payload entry that '
+        'carries only a variation', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Get started',
+          'valueId': 'value-id-get-started',
+          'variation': {
+            'id': '99999999-9999-4999-8999-999999999999',
+            'name': null,
+          },
+        },
+      });
+
+      client.getValue('checkout-cta-copy', 'in-code default');
+
+      final event = telemetry.events.single;
+      expect(event.variationId, '99999999-9999-4999-8999-999999999999');
+      expect(event.ruleId, isNull);
+      expect(event.shareId, isNull);
+    });
+
+    test('reports no rule, share or variation when the in-code default value '
+        'is returned', () async {
+      final client = await clientServing({
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Try it free',
+          'valueId': 'value-id-treatment',
+          'variation': {
+            'id': '88888888-8888-4888-8888-888888888888',
+            'name': 'treatment',
+          },
+          'ruleId': '22222222-2222-4222-8222-222222222222',
+          'shareId': '66666666-6666-4666-8666-666666666666',
+        },
+      });
+
+      client.getValue('checkout-cta-copy', 7);
+
+      final event = telemetry.events.single;
+      expect(event.evaluationReason, EvaluationReason.invalidNumber);
+      expect(event.ruleId, isNull);
+      expect(event.shareId, isNull);
+      expect(event.variationId, isNull);
+    });
+
+    test('reports the previous context\'s rule, share and variation until the '
+        'payload of a new context arrives', () async {
+      final client = autoDispose(
+        createClient(
+          connection: const ConnectionOptions(timeout: Duration(seconds: 3)),
+        ),
+      );
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      transport.emitConfigSet(
+        ConfigSet.fromJson({
+          'kind': 'full',
+          'configs': {
+            'checkout-cta-copy': {
+              'id': '00000000-0000-0000-0000-000000000001',
+              'key': 'checkout-cta-copy',
+              'type': 'string',
+              'value': 'Try it free',
+              'valueId': 'value-id-treatment',
+              'variation': {
+                'id': '88888888-8888-4888-8888-888888888888',
+                'name': 'treatment',
+              },
+              'ruleId': '22222222-2222-4222-8222-222222222222',
+              'shareId': '66666666-6666-4666-8666-666666666666',
+            },
+          },
+        }),
+      );
+      await initialization;
+      transport.holdConnects = true;
+
+      final contextUpdate = client.updateContext(
+        const ConfigDirectorContext(id: 'user-2'),
+      );
+      await pumpEventQueue();
+      client.getValue('checkout-cta-copy', 'in-code default');
+
+      final beforeThePayload = telemetry.events.single;
+      expect(beforeThePayload.ruleId, '22222222-2222-4222-8222-222222222222');
+      expect(beforeThePayload.shareId, '66666666-6666-4666-8666-666666666666');
+      expect(
+        beforeThePayload.variationId,
+        '88888888-8888-4888-8888-888888888888',
+      );
+
+      transport.heldConnects.single.complete();
+      transport.emitConfigSet(
+        ConfigSet.fromJson({
+          'kind': 'full',
+          'configs': {
+            'checkout-cta-copy': {
+              'id': '00000000-0000-0000-0000-000000000001',
+              'key': 'checkout-cta-copy',
+              'type': 'string',
+              'value': 'Get started',
+              'valueId': 'value-id-control',
+              'variation': {
+                'id': '99999999-9999-4999-8999-999999999999',
+                'name': 'control',
+              },
+              'ruleId': '22222222-2222-4222-8222-222222222222',
+              'shareId': '77777777-7777-4777-8777-777777777777',
+            },
+          },
+        }),
+      );
+      await contextUpdate;
+      client.getValue('checkout-cta-copy', 'in-code default');
+
+      final afterThePayload = telemetry.events.last;
+      expect(afterThePayload.shareId, '77777777-7777-4777-8777-777777777777');
+      expect(
+        afterThePayload.variationId,
+        '99999999-9999-4999-8999-999999999999',
+      );
+    });
+
+    test('reports no rule or share once a delta replaces the entry with one '
+        'that has none', () async {
+      final client = autoDispose(createClient());
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      transport.emitConfigSet(
+        ConfigSet.fromJson({
+          'kind': 'full',
+          'configs': {
+            'checkout-cta-copy': {
+              'id': '00000000-0000-0000-0000-000000000001',
+              'key': 'checkout-cta-copy',
+              'type': 'string',
+              'value': 'Try it free',
+              'valueId': 'value-id-treatment',
+              'variation': {
+                'id': '88888888-8888-4888-8888-888888888888',
+                'name': 'treatment',
+              },
+              'ruleId': '22222222-2222-4222-8222-222222222222',
+              'shareId': '66666666-6666-4666-8666-666666666666',
+            },
+          },
+        }),
+      );
+      await initialization;
+
+      transport.emitConfigSet(
+        ConfigSet.fromJson({
+          'kind': 'delta',
+          'configs': {
+            'checkout-cta-copy': {
+              'id': '00000000-0000-0000-0000-000000000001',
+              'key': 'checkout-cta-copy',
+              'type': 'string',
+              'value': 'Try it free',
+              'valueId': 'value-id-treatment',
+              'variation': {
+                'id': '88888888-8888-4888-8888-888888888888',
+                'name': 'treatment',
+              },
+            },
+          },
+        }),
+      );
+      await pumpEventQueue();
+      client.getValue('checkout-cta-copy', 'in-code default');
+
+      final event = telemetry.events.single;
+      expect(event.variationId, '88888888-8888-4888-8888-888888888888');
+      expect(event.ruleId, isNull);
+      expect(event.shareId, isNull);
+    });
+
     test('records the evaluations behind a watch stream', () async {
       final client = autoDispose(createClient());
 
@@ -2181,6 +2597,22 @@ void main() {
       final evaluation = client.evaluate('max-items', 0);
       expect(evaluation.value, 20);
       expect(evaluation.reason, EvaluationReason.foundMatch);
+    });
+
+    test('serves an inline value without a variation', () async {
+      final client = createOfflineClient(
+        connection: const ConnectionOptions(
+          mode: ConnectionMode.offline,
+          values: {'max-items': 20},
+        ),
+      );
+
+      await client.initialize();
+
+      final evaluation = client.evaluate('max-items', 0);
+
+      expect(evaluation.value, 20);
+      expect(evaluation.variation, isNull);
     });
 
     test('rejects initialization for a null value', () async {
@@ -2567,6 +2999,188 @@ void main() {
         client.evaluate('dark-mode', false).reason,
         EvaluationReason.cached,
       );
+    });
+
+    test('evaluate returns a value kept on the device with its '
+        'variation', () async {
+      cachingProvider.stored = entry(
+        configs: {
+          'checkout-cta-copy': {
+            'id': '00000000-0000-0000-0000-000000000001',
+            'key': 'checkout-cta-copy',
+            'type': 'string',
+            'value': 'Try it free',
+            'valueId': 'value-id-treatment',
+            'variation': {
+              'id': '88888888-8888-4888-8888-888888888888',
+              'name': 'treatment',
+            },
+            'ruleId': '22222222-2222-4222-8222-222222222222',
+            'shareId': '66666666-6666-4666-8666-666666666666',
+          },
+        },
+      );
+      final client = autoDispose(createClient());
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      final evaluation = client.evaluate(
+        'checkout-cta-copy',
+        'in-code default',
+      );
+
+      expect(evaluation.reason, EvaluationReason.cached);
+      expect(evaluation.value, 'Try it free');
+      expect(
+        evaluation.variation,
+        const Variation(
+          id: '88888888-8888-4888-8888-888888888888',
+          name: 'treatment',
+        ),
+      );
+    });
+
+    test('reports the rule, share and variation kept on the device with a '
+        'value', () async {
+      cachingProvider.stored = entry(
+        configs: {
+          'checkout-cta-copy': {
+            'id': '00000000-0000-0000-0000-000000000001',
+            'key': 'checkout-cta-copy',
+            'type': 'string',
+            'value': 'Try it free',
+            'valueId': 'value-id-treatment',
+            'variation': {
+              'id': '88888888-8888-4888-8888-888888888888',
+              'name': 'treatment',
+            },
+            'ruleId': '22222222-2222-4222-8222-222222222222',
+            'shareId': '66666666-6666-4666-8666-666666666666',
+          },
+        },
+      );
+      final client = autoDispose(createClient());
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      client.getValue('checkout-cta-copy', 'in-code default');
+
+      final event = telemetry.events.single;
+      expect(event.evaluationReason, EvaluationReason.cached);
+      expect(event.ruleId, '22222222-2222-4222-8222-222222222222');
+      expect(event.shareId, '66666666-6666-4666-8666-666666666666');
+      expect(event.variationId, '88888888-8888-4888-8888-888888888888');
+    });
+
+    test('serves a value kept by an earlier version without a variation, rule '
+        'or share', () async {
+      cachingProvider.stored = entry();
+      final client = autoDispose(createClient());
+      unawaited(client.initialize(const ConfigDirectorContext(id: 'user-1')));
+      await pumpEventQueue();
+
+      final evaluation = client.evaluate('dark-mode', false);
+
+      expect(evaluation.reason, EvaluationReason.cached);
+      expect(evaluation.value, isTrue);
+      expect(evaluation.variation, isNull);
+
+      final event = telemetry.events.single;
+      expect(event.ruleId, isNull);
+      expect(event.shareId, isNull);
+      expect(event.variationId, isNull);
+    });
+
+    test('keeps the variation, rule and share of a payload on the '
+        'device', () async {
+      final client = autoDispose(createClient());
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      transport.emitConfigSet(
+        ConfigSet.fromJson({
+          'environmentId': 'env-id',
+          'projectId': 'project-id',
+          'kind': 'full',
+          'configs': {
+            'checkout-cta-copy': {
+              'id': '00000000-0000-0000-0000-000000000001',
+              'key': 'checkout-cta-copy',
+              'type': 'string',
+              'value': 'Try it free',
+              'valueId': 'value-id-treatment',
+              'variation': {
+                'id': '88888888-8888-4888-8888-888888888888',
+                'name': 'treatment',
+              },
+              'ruleId': '22222222-2222-4222-8222-222222222222',
+              'shareId': '66666666-6666-4666-8666-666666666666',
+            },
+          },
+        }),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      final written = jsonDecode(cachingProvider.writes.single) as Map;
+      expect(written['formatVersion'], 2);
+      expect(written['configs'], {
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Try it free',
+          'valueId': 'value-id-treatment',
+          'variation': {
+            'id': '88888888-8888-4888-8888-888888888888',
+            'name': 'treatment',
+          },
+          'ruleId': '22222222-2222-4222-8222-222222222222',
+          'shareId': '66666666-6666-4666-8666-666666666666',
+        },
+      });
+    });
+
+    test('keeps an unnamed variation on the device with its id and no '
+        'name', () async {
+      final client = autoDispose(createClient());
+      final initialization = client.initialize(
+        const ConfigDirectorContext(id: 'user-1'),
+      );
+      transport.emitConfigSet(
+        ConfigSet.fromJson({
+          'environmentId': 'env-id',
+          'projectId': 'project-id',
+          'kind': 'full',
+          'configs': {
+            'checkout-cta-copy': {
+              'id': '00000000-0000-0000-0000-000000000001',
+              'key': 'checkout-cta-copy',
+              'type': 'string',
+              'value': 'Get started',
+              'valueId': 'value-id-get-started',
+              'variation': {
+                'id': '99999999-9999-4999-8999-999999999999',
+                'name': null,
+              },
+            },
+          },
+        }),
+      );
+      await initialization;
+      await pumpEventQueue();
+
+      final written = jsonDecode(cachingProvider.writes.single) as Map;
+      expect(written['configs'], {
+        'checkout-cta-copy': {
+          'id': '00000000-0000-0000-0000-000000000001',
+          'key': 'checkout-cta-copy',
+          'type': 'string',
+          'value': 'Get started',
+          'valueId': 'value-id-get-started',
+          'variation': {'id': '99999999-9999-4999-8999-999999999999'},
+        },
+      });
     });
 
     test('live values replace the kept values, and the entry follows every '

@@ -38,6 +38,9 @@ final class ConfigState {
     required this.type,
     this.value,
     this.valueId,
+    this.variation,
+    this.ruleId,
+    this.shareId,
   });
 
   factory ConfigState.fromJson(Map<String, Object?> json) => ConfigState(
@@ -46,6 +49,9 @@ final class ConfigState {
     type: ConfigType.fromWireName(json['type'] as String?),
     value: json['value'] as String?,
     valueId: json['valueId'] as String?,
+    variation: _variationFrom(json['variation']),
+    ruleId: json['ruleId'] as String?,
+    shareId: json['shareId'] as String?,
   );
 
   final String id;
@@ -59,12 +65,23 @@ final class ConfigState {
   /// An opaque identifier of the evaluated value, used for telemetry.
   final String? valueId;
 
+  final Variation? variation;
+  final String? ruleId;
+  final String? shareId;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'key': key,
     'type': type.wireName,
     if (value != null) 'value': value,
     if (valueId != null) 'valueId': valueId,
+    if (variation case final variation?)
+      'variation': {
+        'id': variation.id,
+        if (variation.name != null) 'name': variation.name,
+      },
+    if (ruleId != null) 'ruleId': ruleId,
+    if (shareId != null) 'shareId': shareId,
   };
 
   @override
@@ -75,15 +92,28 @@ final class ConfigState {
           other.key == key &&
           other.type == type &&
           other.value == value &&
-          other.valueId == valueId);
+          other.valueId == valueId &&
+          other.variation == variation &&
+          other.ruleId == ruleId &&
+          other.shareId == shareId);
 
   @override
-  int get hashCode => Object.hash(id, key, type, value, valueId);
+  int get hashCode =>
+      Object.hash(id, key, type, value, valueId, variation, ruleId, shareId);
 
   @override
   String toString() =>
-      'ConfigState(id: $id, key: $key, type: ${type.wireName}, value: $value, valueId: $valueId)';
+      'ConfigState(id: $id, key: $key, type: ${type.wireName}, value: $value, '
+      'valueId: $valueId, variation: $variation, ruleId: $ruleId, '
+      'shareId: $shareId)';
 }
+
+Variation? _variationFrom(Object? wireVariation) => switch (wireVariation) {
+  {'id': final String id, 'name': final String name} when name.isNotEmpty =>
+    Variation(id: id, name: name),
+  {'id': final String id} => Variation(id: id),
+  _ => null,
+};
 
 /// Whether a [ConfigSet] carries the complete config state or only the configs
 /// that changed since the last one.
@@ -331,12 +361,43 @@ enum EvaluationReason {
 
   /// The value was served from the values kept on the device, before live
   /// values arrived. It is not an in-code default value.
-  cached('cached');
+  cached('cached'),
+
+  /// A server SDK skipped a percentage rollout because the context has no
+  /// identifier to place it in a share, and returned the default targeting rule
+  /// value. This SDK never returns it: a context without an identifier gets one
+  /// derived from an ID the SDK stores for the app install or the website.
+  rolloutSkippedNoIdentifier('rollout-skipped-no-identifier');
 
   const EvaluationReason(this.wireName);
 
   /// The name this reason is reported to the ConfigDirector server under.
   final String wireName;
+}
+
+/// One of the values a config can serve, such as the control or a treatment of
+/// an experiment.
+@immutable
+final class Variation {
+  const Variation({required this.id, this.name});
+
+  /// The ID ConfigDirector assigned to the variation, which stays the same when
+  /// it is renamed.
+  final String id;
+
+  /// The variation's name, or `null` when it has none.
+  final String? name;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Variation && other.id == id && other.name == name);
+
+  @override
+  int get hashCode => Object.hash(id, name);
+
+  @override
+  String toString() => 'Variation(id: $id, name: $name)';
 }
 
 /// The outcome of evaluating a single config.
@@ -348,21 +409,26 @@ final class ConfigEvaluation {
     required this.isDefaultValue,
     required this.reason,
     this.valueId,
+    this.variation,
     this.context,
   });
 
   /// The key of the config that was evaluated.
   final String key;
 
-  /// The value the config evaluated to. This is the default value supplied by
-  /// the caller when [isDefaultValue] is `true`.
+  /// The value the config evaluated to. This is the in-code default value
+  /// supplied by the caller when [isDefaultValue] is `true`.
   final Object value;
 
   /// Identifies the specific config value that was served, for telemetry. It is
-  /// `null` when the default value was returned.
+  /// `null` when the in-code default value was returned.
   final String? valueId;
 
-  /// Whether the default value provided by the caller was returned.
+  /// The variation that was served. It is `null` when the config has no
+  /// variations or the in-code default value is returned.
+  final Variation? variation;
+
+  /// Whether the in-code default value provided by the caller was returned.
   final bool isDefaultValue;
 
   /// Why the config evaluated to [value].

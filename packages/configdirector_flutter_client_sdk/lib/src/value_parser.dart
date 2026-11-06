@@ -12,10 +12,16 @@ final class ConfigEvaluationResult<T extends Object> {
     required this.usedDefault,
     required this.reason,
     this.valueId,
+    this.variation,
+    this.ruleId,
+    this.shareId,
   });
 
   final T value;
   final String? valueId;
+  final Variation? variation;
+  final String? ruleId;
+  final String? shareId;
   final bool usedDefault;
   final EvaluationReason reason;
 }
@@ -55,14 +61,14 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
   }
 
   if (configState.type == ConfigType.json) {
-    return _parseJson(rawValue, defaultValue, configState.valueId);
+    return _parseJson(rawValue, defaultValue, configState);
   }
 
   if (defaultValue is String) {
     if (!_stringSourceTypes.contains(configState.type)) {
       return _useDefault(defaultValue, EvaluationReason.typeMismatch);
     }
-    return _matched(rawValue, configState.valueId, defaultValue);
+    return _matched(rawValue, configState, defaultValue);
   }
 
   if (defaultValue is bool) {
@@ -72,7 +78,7 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
     final parsed = _parseBool(rawValue);
     return parsed == null
         ? _useDefault(defaultValue, EvaluationReason.invalidBoolean)
-        : _matched(parsed, configState.valueId, defaultValue);
+        : _matched(parsed, configState, defaultValue);
   }
 
   if (defaultValue is num) {
@@ -82,7 +88,7 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
     final parsed = T == int ? _parseInt(rawValue) : _parseDouble(rawValue);
     return parsed == null
         ? _useDefault(defaultValue, EvaluationReason.invalidNumber)
-        : _matched(parsed, configState.valueId, defaultValue);
+        : _matched(parsed, configState, defaultValue);
   }
 
   return _useDefault(defaultValue, EvaluationReason.typeMismatch);
@@ -91,10 +97,10 @@ ConfigEvaluationResult<T> parseConfigValue<T extends Object>(
 ConfigEvaluationResult<T> _parseJson<T extends Object>(
   String rawValue,
   T defaultValue,
-  String? valueId,
+  ConfigState configState,
 ) {
   if (defaultValue is String) {
-    return _matched(rawValue, valueId, defaultValue);
+    return _matched(rawValue, configState, defaultValue);
   }
 
   final Object? decoded;
@@ -108,12 +114,12 @@ ConfigEvaluationResult<T> _parseJson<T extends Object>(
     return _useDefault(defaultValue, EvaluationReason.invalidJson);
   }
 
-  return _matched(decoded, valueId, defaultValue);
+  return _matched(decoded, configState, defaultValue);
 }
 
 ConfigEvaluationResult<T> _matched<T extends Object>(
   Object parsed,
-  String? valueId,
+  ConfigState configState,
   T defaultValue,
 ) {
   if (parsed is! T) {
@@ -122,7 +128,10 @@ ConfigEvaluationResult<T> _matched<T extends Object>(
 
   return ConfigEvaluationResult(
     value: parsed,
-    valueId: valueId,
+    valueId: configState.valueId,
+    variation: configState.variation,
+    ruleId: configState.ruleId,
+    shareId: configState.shareId,
     usedDefault: false,
     reason: EvaluationReason.foundMatch,
   );

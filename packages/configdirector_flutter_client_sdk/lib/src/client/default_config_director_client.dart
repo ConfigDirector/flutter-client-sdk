@@ -707,12 +707,16 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         evaluatedValueId: result.valueId,
         usedDefault: result.usedDefault,
         evaluationReason: reason,
+        ruleId: result.ruleId,
+        shareId: result.shareId,
+        variationId: result.variation?.id,
       ),
     );
     final evaluation = ConfigEvaluation(
       key: configKey,
       value: result.value,
       valueId: result.valueId,
+      variation: result.variation,
       isDefaultValue: result.usedDefault,
       reason: reason,
       context: _currentContext,

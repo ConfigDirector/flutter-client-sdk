@@ -145,6 +145,24 @@ void main() {
     },
   );
 
+  test(
+    'exposes the variation name as the variant through an OpenFeature client',
+    () async {
+      configDirectorClient.variations['greeting'] = const Variation(
+        id: 'variation-id',
+        name: 'treatment',
+      );
+      await api.setProviderAndWait(provider);
+      final client = api.getClient();
+
+      final details = client.getStringDetails('greeting', 'in-code default');
+
+      expect(details.value, 'hello');
+      expect(details.variant, 'treatment');
+      expect(details.reason, 'TARGETING_MATCH');
+    },
+  );
+
   test('notifies ready handlers once', () async {
     final ready = record(ProviderEventType.ready);
 

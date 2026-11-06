@@ -65,7 +65,7 @@ If ConfigDirector does not answer for a new context in time, `setEvaluationConte
 
 ## Resolution details
 
-A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and the served value's id as its variant. A value kept on the device from an earlier launch of the same context, served until live values arrive, resolves with the reason `CACHED` and the value's id as its variant. One the config has no value for resolves to the in-code default value with the reason `DEFAULT`. Everything else is an error carrying the in-code default value: `flagNotFound` for an unknown key, `providerNotReady` before config state has arrived, and `typeMismatch` for a value that cannot be read as the requested type.
+A flag ConfigDirector served resolves with the reason `TARGETING_MATCH` and, as its variant, the name of the variation served, or the served value's id for a config without variations or an unnamed variation. A value kept on the device from an earlier launch of the same context, served until live values arrive, resolves with the reason `CACHED` and the same variant. One the config has no value for resolves to the in-code default value with the reason `DEFAULT`. Everything else is an error carrying the in-code default value: `flagNotFound` for an unknown key, `providerNotReady` before config state has arrived, and `typeMismatch` for a value that cannot be read as the requested type.
 
 ```dart
 final details = client.getBooleanDetails('dark-mode', false);

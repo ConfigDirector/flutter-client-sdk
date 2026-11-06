@@ -1,19 +1,27 @@
 import 'package:configdirector_flutter_client_sdk/configdirector_flutter_client_sdk.dart';
 import 'package:openfeature_dart_client_sdk/openfeature_dart_client_sdk.dart';
 
+String? _variantOf(ConfigEvaluation evaluation) =>
+    evaluation.variation?.name ?? evaluation.valueId;
+
 ResolutionDetails<T> resolutionOf<T extends Object>(
   ConfigEvaluation evaluation,
   T value,
 ) => switch (evaluation.reason) {
   EvaluationReason.foundMatch => ResolutionDetails(
     value: value,
-    variant: evaluation.valueId,
+    variant: _variantOf(evaluation),
     reason: 'TARGETING_MATCH',
   ),
   EvaluationReason.cached => ResolutionDetails(
     value: value,
-    variant: evaluation.valueId,
+    variant: _variantOf(evaluation),
     reason: 'CACHED',
+  ),
+  EvaluationReason.rolloutSkippedNoIdentifier => ResolutionDetails(
+    value: value,
+    variant: _variantOf(evaluation),
+    reason: 'DEFAULT',
   ),
   EvaluationReason.valueMissing => ResolutionDetails(
     value: value,
