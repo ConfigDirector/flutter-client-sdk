@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-06
+
 ### Added
 
 - `evaluate` and the `onConfigEvaluated` event now carry `variation`: the `id` and `name` of the
