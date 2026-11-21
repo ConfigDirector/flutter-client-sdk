@@ -37,6 +37,12 @@ Map<String, Object?> configJson(String key, String type, String value) => {
   'valueId': 'value-id',
 };
 
+String planConfigSetBody(String plan, {required String timestamp}) =>
+    configSetBody(
+      configs: {'plan': configJson('plan', 'string', plan)},
+      timestamp: timestamp,
+    );
+
 void main() {
   late RecordingLogger logger;
   late List<http.Request> requests;
@@ -361,6 +367,181 @@ void main() {
       async.elapse(const Duration(seconds: 35));
 
       expect(requests, hasLength(1));
+    });
+  });
+
+  test('a first fetch that lands after a later connect emits nothing', () {
+    fakeAsync((async) {
+      final transport = PollingTransport(
+        optionsWith(
+          MockClient((request) async {
+            requests.add(request);
+            if (request.body.contains('lastUpdateTimestamp')) {
+              return http.Response('', 204);
+            }
+            if (request.body.contains('"id":"user-a"')) {
+              await Future<void>.delayed(const Duration(seconds: 2));
+              return http.Response(
+                planConfigSetBody(
+                  'for-user-a',
+                  timestamp: '2026-11-21T10:00:00Z',
+                ),
+                200,
+              );
+            }
+            return http.Response(
+              planConfigSetBody(
+                'for-user-b',
+                timestamp: '2026-11-21T11:00:00Z',
+              ),
+              200,
+            );
+          }),
+          pollingInterval: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(transport.dispose);
+      final receivedPlans = <String?>[];
+      transport.configSets.listen(
+        (configSet) => receivedPlans.add(configSet.configs['plan']?.value),
+      );
+
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(id: 'user-a'),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
+      async.elapse(const Duration(milliseconds: 500));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(id: 'user-b'),
+          _timeout,
+          ClientConnectAction.contextUpdate,
+        ),
+      );
+      async.elapse(const Duration(seconds: 11));
+
+      expect(receivedPlans, ['for-user-b']);
+      expect(
+        (jsonDecode(requests.last.body) as Map)['lastUpdateTimestamp'],
+        '2026-11-21T11:00:00Z',
+      );
+    });
+  });
+
+  test('a poll in flight when a new connect starts emits nothing', () {
+    fakeAsync((async) {
+      final transport = PollingTransport(
+        optionsWith(
+          MockClient((request) async {
+            requests.add(request);
+            final isPoll = request.body.contains('lastUpdateTimestamp');
+            final isForUserA = request.body.contains('"id":"user-a"');
+            if (isPoll && isForUserA) {
+              await Future<void>.delayed(const Duration(seconds: 2));
+              return http.Response(
+                planConfigSetBody(
+                  'polled-for-user-a',
+                  timestamp: '2026-11-21T10:30:00Z',
+                ),
+                200,
+              );
+            }
+            if (isPoll) {
+              return http.Response('', 204);
+            }
+            if (isForUserA) {
+              return http.Response(
+                planConfigSetBody(
+                  'for-user-a',
+                  timestamp: '2026-11-21T10:00:00Z',
+                ),
+                200,
+              );
+            }
+            return http.Response(
+              planConfigSetBody(
+                'for-user-b',
+                timestamp: '2026-11-21T11:00:00Z',
+              ),
+              200,
+            );
+          }),
+          pollingInterval: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(transport.dispose);
+      final receivedPlans = <String?>[];
+      transport.configSets.listen(
+        (configSet) => receivedPlans.add(configSet.configs['plan']?.value),
+      );
+
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(id: 'user-a'),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
+      async.elapse(const Duration(seconds: 11));
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(id: 'user-b'),
+          _timeout,
+          ClientConnectAction.contextUpdate,
+        ),
+      );
+      async.elapse(const Duration(seconds: 11));
+
+      expect(receivedPlans, ['for-user-a', 'for-user-b']);
+      expect(
+        (jsonDecode(requests.last.body) as Map)['lastUpdateTimestamp'],
+        '2026-11-21T11:00:00Z',
+      );
+    });
+  });
+
+  test('a poll in flight when closed emits nothing', () {
+    fakeAsync((async) {
+      final transport = PollingTransport(
+        optionsWith(
+          MockClient((request) async {
+            requests.add(request);
+            if (request.body.contains('lastUpdateTimestamp')) {
+              await Future<void>.delayed(const Duration(seconds: 2));
+              return http.Response(
+                planConfigSetBody('polled', timestamp: '2026-11-21T10:30:00Z'),
+                200,
+              );
+            }
+            return http.Response(
+              planConfigSetBody('connected', timestamp: '2026-11-21T10:00:00Z'),
+              200,
+            );
+          }),
+          pollingInterval: const Duration(seconds: 10),
+        ),
+      );
+      addTearDown(transport.dispose);
+      final receivedPlans = <String?>[];
+      transport.configSets.listen(
+        (configSet) => receivedPlans.add(configSet.configs['plan']?.value),
+      );
+
+      unawaited(
+        transport.connect(
+          const ConfigDirectorContext(),
+          _timeout,
+          ClientConnectAction.initialization,
+        ),
+      );
+      async.elapse(const Duration(seconds: 11));
+      transport.close();
+      async.elapse(const Duration(seconds: 2));
+
+      expect(receivedPlans, ['connected']);
     });
   });
 

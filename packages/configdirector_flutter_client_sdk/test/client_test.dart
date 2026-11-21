@@ -868,6 +868,23 @@ void main() {
   });
 
   group('polling', () {
+    http.Response planResponse(String plan) => http.Response(
+      jsonEncode({
+        'kind': 'full',
+        'timestamp': '2026-11-21T10:00:00Z',
+        'configs': {
+          'plan': {
+            'id': 'plan-id',
+            'key': 'plan',
+            'type': 'string',
+            'value': plan,
+            'valueId': 'value-id',
+          },
+        },
+      }),
+      200,
+    );
+
     test('adopts the context when the first fetch fails transiently', () async {
       var fetches = 0;
       final client = autoDispose(
@@ -900,6 +917,65 @@ void main() {
 
       expect(client.context, context);
       expect(telemetry.contextUpdates, [context]);
+    });
+
+    test('keeps serving the updated context when the initial response lands '
+        'after the update', () {
+      fakeAsync((async) {
+        const userA = ConfigDirectorContext(id: 'user-a');
+        const userB = ConfigDirectorContext(id: 'user-b');
+        final client = createClientOverHttp(
+          ConnectionMode.polling,
+          MockClient((request) async {
+            if (request.body.contains('"id":"user-a"')) {
+              await Future<void>.delayed(const Duration(seconds: 2));
+              return planResponse('for-user-a');
+            }
+            return planResponse('for-user-b');
+          }),
+        );
+
+        unawaited(client.initialize(userA));
+        async.elapse(const Duration(milliseconds: 500));
+        unawaited(client.updateContext(userB));
+        async.elapse(const Duration(seconds: 2));
+
+        expect(client.context, userB);
+        expect(client.getValue('plan', 'none'), 'for-user-b');
+      });
+    });
+
+    test('stays not ready when the initial response lands while '
+        'backgrounded', () {
+      fakeAsync((async) {
+        var fetches = 0;
+        final client = createClientOverHttp(
+          ConnectionMode.polling,
+          MockClient((request) async {
+            fetches++;
+            if (fetches == 1) {
+              await Future<void>.delayed(const Duration(seconds: 2));
+            }
+            return planResponse('pro');
+          }),
+        );
+        final readyActions = <ClientConnectAction>[];
+        client.onClientReady.listen((event) => readyActions.add(event.action));
+
+        unawaited(client.initialize(const ConfigDirectorContext(id: 'user-a')));
+        async.elapse(const Duration(milliseconds: 500));
+        lifecycleWatcher.send(AppLifecycleState.paused);
+        async.elapse(const Duration(seconds: 2));
+
+        expect(client.isReady, isFalse);
+        expect(readyActions, isEmpty);
+
+        lifecycleWatcher.send(AppLifecycleState.resumed);
+        async.flushMicrotasks();
+
+        expect(client.isReady, isTrue);
+        expect(readyActions, [ClientConnectAction.networkResume]);
+      });
     });
 
     group('when no config changed since the last values', () {

@@ -5,6 +5,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- In polling mode, a response to `initialize`, `updateContext` or `resumeNetwork` that arrives after
+  the app updated the context or paused the network is now ignored, and so is a poll that was under
+  way at that moment. Before, after `updateContext`, for example when a user signed in during a slow
+  start, the late response replaced the new context's values while `context` already returned the
+  new context. The client kept those values, on the device too, until a config changed. After a
+  pause, by `pauseNetwork` or by the app going to the background, the client became ready and
+  emitted `onClientReady` and `onConfigsUpdated` while paused. Now it stays paused and not ready:
+  the call that was waiting for that response returns once its timeout runs out, with the usual
+  timeout warning. The next `resumeNetwork`, such as the app coming back to the foreground,
+  reconnects with the context that call was given.
+
 ## [1.8.0] - 2026-11-06
 
 ### Added

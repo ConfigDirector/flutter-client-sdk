@@ -50,7 +50,7 @@ class PollingTransport implements Transport {
     final generation = _endCurrentConnection();
 
     try {
-      await _fetchConfigs(context, timeout);
+      await _fetchConfigs(context, timeout, generation);
     } on ConfigDirectorConnectionException catch (error, stackTrace) {
       if (_hasFatalError) {
         _logger.error(
@@ -67,8 +67,8 @@ class PollingTransport implements Transport {
         );
       }
     } finally {
-      if (!_hasFatalError && generation == _connectionGeneration) {
-        _schedulePolling(context, timeout);
+      if (!_hasFatalError && _isCurrentConnection(generation)) {
+        _schedulePolling(context, timeout, generation);
       }
     }
     return _hasFatalError
@@ -76,10 +76,14 @@ class PollingTransport implements Transport {
         : ConnectOutcome.connected;
   }
 
-  void _schedulePolling(ConfigDirectorContext context, Duration timeout) {
+  void _schedulePolling(
+    ConfigDirectorContext context,
+    Duration timeout,
+    int generation,
+  ) {
     _pollingTimer = Timer.periodic(_pollingInterval, (_) async {
       try {
-        await _fetchConfigs(context, timeout);
+        await _fetchConfigs(context, timeout, generation);
       } on Object catch (error, stackTrace) {
         _logger.warn(
           '[PollingTransport] Error during polling',
@@ -93,6 +97,7 @@ class PollingTransport implements Transport {
   Future<void> _fetchConfigs(
     ConfigDirectorContext context,
     Duration timeout,
+    int generation,
   ) async {
     if (_hasFatalError) {
       _logger.warn(
@@ -132,7 +137,7 @@ class PollingTransport implements Transport {
       return;
     }
 
-    _dispatchConfigSet(response.body);
+    _dispatchConfigSet(response.body, generation);
   }
 
   void _throwOnErrorStatus(http.Response response) {
@@ -158,7 +163,7 @@ class PollingTransport implements Transport {
     );
   }
 
-  void _dispatchConfigSet(String body) {
+  void _dispatchConfigSet(String body, int generation) {
     final Object? json;
     try {
       json = jsonDecode(body);
@@ -182,6 +187,11 @@ class PollingTransport implements Transport {
         'The server responded with an unexpected payload: $error',
       );
     }
+
+    if (!_isCurrentConnection(generation)) {
+      return;
+    }
+
     _lastUpdateTimestamp = configSet.timestamp;
     if (!_configSets.isClosed) {
       _configSets.add(configSet);
@@ -200,6 +210,9 @@ class PollingTransport implements Transport {
     _connectionGeneration += 1;
     return _connectionGeneration;
   }
+
+  bool _isCurrentConnection(int generation) =>
+      generation == _connectionGeneration;
 
   @override
   void dispose() {
