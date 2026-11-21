@@ -978,6 +978,144 @@ void main() {
       });
     });
 
+    test('an initialize replaced before its response arrives returns once the '
+        'updated context\'s values arrive', () {
+      fakeAsync((async) {
+        final client = createClientOverHttp(
+          ConnectionMode.polling,
+          MockClient((request) async {
+            if (request.body.contains('"id":"user-a"')) {
+              await Future<void>.delayed(const Duration(seconds: 1));
+              return planResponse('for-user-a');
+            }
+            await Future<void>.delayed(const Duration(seconds: 2));
+            return planResponse('for-user-b');
+          }),
+        );
+        var initialized = false;
+
+        unawaited(
+          client
+              .initialize(const ConfigDirectorContext(id: 'user-a'))
+              .then((_) => initialized = true),
+        );
+        async.elapse(const Duration(milliseconds: 500));
+        unawaited(
+          client.updateContext(const ConfigDirectorContext(id: 'user-b')),
+        );
+        async.elapse(const Duration(seconds: 1));
+
+        expect(initialized, isFalse);
+
+        async.elapse(const Duration(seconds: 1));
+
+        expect(initialized, isTrue);
+        expect(client.isReady, isTrue);
+      });
+    });
+
+    test('an initialize waiting for its first values returns once an update '
+        'makes the client ready', () {
+      fakeAsync((async) {
+        final client = createClientOverHttp(
+          ConnectionMode.polling,
+          MockClient((request) async {
+            if (request.body.contains('"id":"user-a"')) {
+              return http.Response('server exploded', 500);
+            }
+            return planResponse('for-user-b');
+          }),
+        );
+        var initialized = false;
+
+        unawaited(
+          client
+              .initialize(const ConfigDirectorContext(id: 'user-a'))
+              .then((_) => initialized = true),
+        );
+        async.elapse(const Duration(milliseconds: 500));
+
+        expect(initialized, isFalse);
+
+        unawaited(
+          client.updateContext(const ConfigDirectorContext(id: 'user-b')),
+        );
+        async.flushMicrotasks();
+
+        expect(client.isReady, isTrue);
+        expect(initialized, isTrue);
+      });
+    });
+
+    test('a replaced initialize that times out logs the timeout warning', () {
+      fakeAsync((async) {
+        final client = createClientOverHttp(
+          ConnectionMode.polling,
+          MockClient((request) async {
+            if (request.body.contains('"id":"user-a"')) {
+              await Future<void>.delayed(const Duration(seconds: 1));
+              return planResponse('for-user-a');
+            }
+            await Future<void>.delayed(const Duration(seconds: 10));
+            return planResponse('for-user-b');
+          }),
+        );
+
+        unawaited(client.initialize(const ConfigDirectorContext(id: 'user-a')));
+        async.elapse(const Duration(milliseconds: 500));
+        unawaited(
+          client.updateContext(const ConfigDirectorContext(id: 'user-b')),
+        );
+        async.elapse(const Duration(seconds: 5));
+
+        expect(
+          logger.warnings.any(
+            (message) =>
+                message.contains('Timed out waiting for initialization'),
+          ),
+          isTrue,
+        );
+      });
+    });
+
+    test('a replaced initialize paused before the updated context\'s values '
+        'arrive returns at its timeout', () {
+      fakeAsync((async) {
+        final client = createClientOverHttp(
+          ConnectionMode.polling,
+          MockClient((request) async {
+            if (request.body.contains('"id":"user-a"')) {
+              await Future<void>.delayed(const Duration(seconds: 1));
+              return planResponse('for-user-a');
+            }
+            await Future<void>.delayed(const Duration(seconds: 2));
+            return planResponse('for-user-b');
+          }),
+        );
+        var initialized = false;
+
+        unawaited(
+          client
+              .initialize(const ConfigDirectorContext(id: 'user-a'))
+              .then((_) => initialized = true),
+        );
+        async.elapse(const Duration(milliseconds: 500));
+        unawaited(
+          client.updateContext(const ConfigDirectorContext(id: 'user-b')),
+        );
+        async.elapse(const Duration(milliseconds: 700));
+        client.pauseNetwork();
+        async.elapse(const Duration(milliseconds: 1500));
+
+        expect(initialized, isFalse);
+
+        async.elapse(const Duration(seconds: 3));
+
+        expect(initialized, isTrue);
+        expect(client.isReady, isFalse);
+      });
+    });
+
     group('when no config changed since the last values', () {
       const freeUser = ConfigDirectorContext(id: 'free-user');
       const proUser = ConfigDirectorContext(id: 'pro-user');

@@ -721,11 +721,10 @@ void main() {
       await pumpEventQueue();
 
       expect(client.isReady, isFalse);
-      await initialization;
-      expect(client.isReady, isFalse);
 
       testClient.completeContextUpdate();
-      await update;
+      await Future.wait([initialization, update]);
+
       expect(client.isReady, isTrue);
       expect(client.context, _userB);
     });

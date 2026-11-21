@@ -231,7 +231,8 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   ConfigSet? _configSet;
   ConfigDirectorContext? _currentContext;
   ConfigDirectorContext? _requestedContext;
-  Completer<void>? _readyCompleter;
+  bool _awaitingFirstValues = false;
+  Completer<void> _readyOrDisposedSignal = Completer<void>();
   int _connectionGeneration = 0;
   ClientConnectAction _pendingAction = ClientConnectAction.initialization;
   bool _ready = false;
@@ -410,13 +411,10 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
     unawaited(_configSetSubscription.cancel());
     unwatchAll();
 
-    final readyCompleter = _readyCompleter;
-    if (readyCompleter != null && !readyCompleter.isCompleted) {
-      readyCompleter.complete();
-    }
-    _readyCompleter = null;
+    _awaitingFirstValues = false;
     _ready = false;
     _initializing = false;
+    _signalReadyOrDisposed();
 
     _transport.dispose();
     unawaited(_clientReady.close());
@@ -452,13 +450,13 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   ) async {
     _connectionGeneration += 1;
     final generation = _connectionGeneration;
+    final readyOrDisposed = _readyOrDisposedSignal.future;
     try {
       _ready = false;
       _hasConnected = true;
       _pendingAction = action;
       _requestedContext = context;
-      final readyCompleter = Completer<void>();
-      _readyCompleter = readyCompleter;
+      _awaitingFirstValues = true;
 
       await _connectPrerequisites;
       if (_disposed) {
@@ -470,21 +468,20 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
         _timeout,
         action,
       );
-      if (generation != _connectionGeneration) {
-        return;
-      }
       if (outcome == ConnectOutcome.failedFatally) {
         _initializing = false;
         return;
       }
-      _adoptContext(context);
+      if (generation == _connectionGeneration) {
+        _adoptContext(context);
+      }
 
       final remaining = _timeout - stopwatch.elapsed;
       if (remaining > Duration.zero) {
-        await readyCompleter.future.timeout(remaining, onTimeout: () {});
+        await readyOrDisposed.timeout(remaining, onTimeout: () {});
       }
 
-      if (!_ready && generation == _connectionGeneration) {
+      if (!_ready) {
         _logger.warn(
           '[ConfigDirectorClient] Timed out waiting for ${action.description} after '
           '${_timeout.inMilliseconds}ms. The client will continue to retry as long as no '
@@ -503,7 +500,7 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   }
 
   Future<void> _loadOfflineValues(ConfigDirectorContext? context) async {
-    _readyCompleter = Completer<void>();
+    _awaitingFirstValues = true;
     _adoptContext(context);
     try {
       await _transport.connect(
@@ -661,17 +658,22 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
   }
 
   void _markReady() {
-    final readyCompleter = _readyCompleter;
-    if (readyCompleter == null || readyCompleter.isCompleted) {
+    if (!_awaitingFirstValues) {
       return;
     }
 
-    readyCompleter.complete();
+    _awaitingFirstValues = false;
     _ready = true;
+    _signalReadyOrDisposed();
     _emit(_clientReady, ClientReadyEvent(_pendingAction));
     _logger.debug(
       '[ConfigDirectorClient] Received initial payload from the server, client is ready',
     );
+  }
+
+  void _signalReadyOrDisposed() {
+    _readyOrDisposedSignal.complete();
+    _readyOrDisposedSignal = Completer<void>();
   }
 
   ConfigEvaluation _evaluate<T extends Object>(

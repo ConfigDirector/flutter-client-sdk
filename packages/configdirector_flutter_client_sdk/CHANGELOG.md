@@ -17,6 +17,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the call that was waiting for that response returns once its timeout runs out, with the usual
   timeout warning. The next `resumeNetwork`, such as the app coming back to the foreground,
   reconnects with the context that call was given.
+- An `initialize`, `updateContext` or `resumeNetwork` that a later call replaced now returns once the
+  client is ready. Before, when the later call came before the earlier call's values arrived, for
+  example when a user signed in during a slow start, `initialize` returned while the new context's
+  values were still on their way, so `isReady` was still false right after it. When the earlier
+  call was already waiting for its values, it waited until its timeout ran out, even though the
+  later call had already made the client ready. Now each call returns as soon as the client is
+  ready, the client is disposed, or its own timeout runs out. In streaming mode, a call replaced
+  before its connection opened still returns at its timeout. A replaced call that times out now
+  logs the timeout warning too.
 
 ## [1.8.0] - 2026-11-06
 
