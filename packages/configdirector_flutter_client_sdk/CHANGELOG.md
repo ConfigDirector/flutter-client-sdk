@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-11-23
+
 ### Fixed
 
 - In polling mode, a response to `initialize`, `updateContext` or `resumeNetwork` that arrives after
