@@ -10,7 +10,10 @@ final class DiscardingTelemetryClient implements TelemetryClient {
   void evaluatedConfig(EvaluatedConfigEvent event) {}
 
   @override
-  void recordInvalidContextSubmission(String contextKindSample) {}
+  void recordInvalidContextKind(String contextKindSample) {}
+
+  @override
+  void recordContextOverSizeLimit(ContextSizeLimitReason reason) {}
 
   @override
   void trackedEvent(

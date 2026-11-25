@@ -66,14 +66,18 @@ abstract interface class ConfigDirectorClient {
   /// cannot be loaded, and the client is then not ready.
   ///
   /// [context] is the current user's context, used to evaluate targeting rules.
-  /// A [context] whose [ConfigDirectorContext.kind] is invalid is ignored as a
+  /// A [context] whose [ConfigDirectorContext.kind] is invalid, or whose
+  /// [ConfigDirectorContext.id], [ConfigDirectorContext.name] or
+  /// [ConfigDirectorContext.traits] is over its size limit, is ignored as a
   /// whole: the client logs an error and evaluates configs as if no context
   /// was given, so the `context` getter reads `null` afterwards.
   Future<void> initialize([ConfigDirectorContext? context]);
 
   /// Updates the user's context and re-evaluates every config against it.
   ///
-  /// A [context] whose [ConfigDirectorContext.kind] is invalid is ignored as a
+  /// A [context] whose [ConfigDirectorContext.kind] is invalid, or whose
+  /// [ConfigDirectorContext.id], [ConfigDirectorContext.name] or
+  /// [ConfigDirectorContext.traits] is over its size limit, is ignored as a
   /// whole: the client logs an error, stops using the previous context, and
   /// evaluates configs as if no context was given, so the `context` getter
   /// reads `null` afterwards.
@@ -84,7 +88,7 @@ abstract interface class ConfigDirectorClient {
 
   /// The context the client is currently evaluating configs against, or `null`
   /// when there is none, as after a context with an invalid
-  /// [ConfigDirectorContext.kind] was ignored.
+  /// [ConfigDirectorContext.kind], or one over a size limit, was ignored.
   ///
   /// This does not change the moment [updateContext] is called: configs are
   /// evaluated against the previous context until the underlying connection
@@ -207,8 +211,8 @@ abstract interface class ConfigDirectorClient {
 
   /// Resumes a connection paused by [pauseNetwork], reusing the last context
   /// given to [initialize] or [updateContext], or no context when that one was
-  /// ignored for an invalid [ConfigDirectorContext.kind]. It does nothing in
-  /// [ConnectionMode.offline].
+  /// ignored for an invalid [ConfigDirectorContext.kind] or for being over a
+  /// size limit. It does nothing in [ConnectionMode.offline].
   Future<void> resumeNetwork();
 
   /// Disposes of the client: closes the connection, every watch stream, and

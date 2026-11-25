@@ -207,6 +207,10 @@ final class ConfigDirectorContext {
   /// uninstalled or its data is cleared. Keep in mind that this value is used
   /// to segment users in percentage rollouts, so changing it can move a user
   /// into a different percentile.
+  ///
+  /// An id has at most 256 characters. A context with a longer one is ignored
+  /// as a whole when it is passed to `initialize` or `updateContext`: the
+  /// client logs an error and evaluates configs as if no context was given.
   final String? id;
 
   /// The context kind, such as `user`, `device` or `organization`, exactly as
@@ -221,6 +225,10 @@ final class ConfigDirectorContext {
 
   /// The user's display name. It is shown in the ConfigDirector dashboard and
   /// may be used by targeting rules.
+  ///
+  /// A name has at most 256 characters. A context with a longer one is ignored
+  /// as a whole when it is passed to `initialize` or `updateContext`: the
+  /// client logs an error and evaluates configs as if no context was given.
   final String? name;
 
   /// Arbitrary traits for the current user. They are shown in the
@@ -229,6 +237,11 @@ final class ConfigDirectorContext {
   /// The map is held as given and must not be modified after the context is
   /// created. Two contexts whose traits are structurally equal, nested values
   /// included, compare equal.
+  ///
+  /// Traits take at most 64 KB once written as JSON (65,536 bytes in UTF-8). A
+  /// context with larger traits is ignored as a whole when it is passed to
+  /// `initialize` or `updateContext`: the client logs an error and evaluates
+  /// configs as if no context was given.
   final Map<String, Object?>? traits;
 
   /// Whether to treat this context as anonymous during evaluation. When `true`,

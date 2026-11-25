@@ -256,6 +256,41 @@ void main() {
     expect(jsonEncode(report), isNot(contains('t-1000')));
   });
 
+  test('reports a context ignored for being over a size limit with its '
+      'reason and count, without the context', () async {
+    final client = createClient(
+      appInfoResolver: () async => const ConfigDirectorMetaContext(),
+    );
+
+    final initialization = client.initialize(
+      ConfigDirectorContext(
+        id: 'device-42',
+        name: 'n' * 257,
+        traits: const {'model': 't-1000'},
+      ),
+    );
+    transport.emitConfigSet(configSet(configs: const {}));
+    await initialization;
+    lifecycleWatcher.send(AppLifecycleState.hidden);
+
+    final report = await reported.future.timeout(const Duration(seconds: 10));
+
+    expect(
+      (report['aggregatedEvents']! as Map<String, Object?>)['invalidContext'],
+      [
+        {
+          'startTime': isA<String>(),
+          'endTime': isA<String>(),
+          'count': 1,
+          'event': {'reason': 'name-too-long'},
+        },
+      ],
+    );
+    expect(report, isNot(contains('context')));
+    expect(jsonEncode(report), isNot(contains('device-42')));
+    expect(jsonEncode(report), isNot(contains('t-1000')));
+  });
+
   test('reports the app name and version read from the platform', () async {
     final client = createClient(
       appInfoResolver: () async => const ConfigDirectorMetaContext(

@@ -76,8 +76,9 @@ final class TestClient {
 
   /// The context of every `initialize` and `updateContext` call, in call
   /// order. `initialize` without a context records an empty context, and so
-  /// does a call whose context has an invalid context kind, since the client
-  /// connects without it. `resumeNetwork` is not recorded.
+  /// does a call whose context has an invalid context kind or is over a size
+  /// limit, since the client connects without it. `resumeNetwork` is not
+  /// recorded.
   List<ConfigDirectorContext> get contextUpdates => _connection.contextUpdates;
 
   /// Every event the code under test tracked through the client, in call order,

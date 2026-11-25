@@ -160,17 +160,35 @@ final class EvaluatedConfigEvent {
 
 const String _invalidContextKindReason = 'invalid-context-kind';
 
+enum ContextSizeLimitReason {
+  identifierTooLong('identifier-too-long'),
+  nameTooLong('name-too-long'),
+  traitsTooLarge('traits-too-large');
+
+  const ContextSizeLimitReason(this._wireName);
+
+  final String _wireName;
+}
+
 @immutable
 final class InvalidContextSubmission {
-  const InvalidContextSubmission.sampled(String this.contextKindSample);
+  const InvalidContextSubmission.sampled(String this.contextKindSample)
+    : _reason = _invalidContextKindReason;
 
   const InvalidContextSubmission.beyondContextKindSampleLimit()
-    : contextKindSample = null;
+    : _reason = _invalidContextKindReason,
+      contextKindSample = null;
+
+  InvalidContextSubmission.overSizeLimit(ContextSizeLimitReason sizeLimitReason)
+    : _reason = sizeLimitReason._wireName,
+      contextKindSample = null;
+
+  final String _reason;
 
   final String? contextKindSample;
 
   Map<String, Object?> toJson() => {
-    'reason': _invalidContextKindReason,
+    'reason': _reason,
     if (contextKindSample != null) 'kindSample': contextKindSample,
   };
 }

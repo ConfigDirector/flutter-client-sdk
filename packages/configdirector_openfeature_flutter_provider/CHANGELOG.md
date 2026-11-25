@@ -5,6 +5,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- An evaluation context over the context size limits is now ignored before it is sent: a
+  `targetingKey` (or `id`) or a `name` longer than 256 characters, or `traits` over 64 KB once
+  written as JSON (65,536 bytes in UTF-8). Initialization and context changes still succeed, flags
+  resolve to the values for no context, and the SDK logs an error that names the limit.
+  ConfigDirector receives a count of these context changes by limit, never the context's identifier,
+  name or traits. ConfigDirector already ignores such a context when it arrives, so the values served
+  do not change; the provider now stops sending it.
+
 ## [0.1.0-beta.8] - 2026-11-06
 
 ### Added

@@ -99,7 +99,8 @@ final class FakeLifecycleWatcher implements AppLifecycleWatcher {
 
 final class FakeTelemetryClient implements TelemetryClient {
   final List<EvaluatedConfigEvent> events = [];
-  final List<String> invalidContextSubmissions = [];
+  final List<String> invalidContextKindSamples = [];
+  final List<ContextSizeLimitReason> contextSizeLimitReasons = [];
   final List<TrackedEventAdmission> trackedEventAdmissions = [];
   final List<ConfigDirectorContext?> contextUpdates = [];
   int flushCount = 0;
@@ -109,8 +110,12 @@ final class FakeTelemetryClient implements TelemetryClient {
   void evaluatedConfig(EvaluatedConfigEvent event) => events.add(event);
 
   @override
-  void recordInvalidContextSubmission(String contextKindSample) =>
-      invalidContextSubmissions.add(contextKindSample);
+  void recordInvalidContextKind(String contextKindSample) =>
+      invalidContextKindSamples.add(contextKindSample);
+
+  @override
+  void recordContextOverSizeLimit(ContextSizeLimitReason reason) =>
+      contextSizeLimitReasons.add(reason);
 
   @override
   void trackedEvent(

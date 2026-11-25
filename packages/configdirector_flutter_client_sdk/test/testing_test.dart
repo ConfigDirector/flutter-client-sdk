@@ -683,6 +683,44 @@ void main() {
       },
     );
 
+    test(
+      'initialize with an id over the size limit records an empty context',
+      () async {
+        final testClient = create(logger: logger);
+
+        await testClient.client.initialize(
+          ConfigDirectorContext(id: 'i' * 257),
+        );
+
+        expect(testClient.contextUpdates, [const ConfigDirectorContext()]);
+        expect(testClient.client.context, isNull);
+        expect(logger.errorMessages, [
+          contains('its id is longer than 256 characters'),
+        ]);
+      },
+    );
+
+    test(
+      'updateContext with a name over the size limit records an empty context',
+      () async {
+        final testClient = create(logger: logger);
+        await testClient.client.initialize(_userA);
+
+        await testClient.client.updateContext(
+          ConfigDirectorContext(id: 'user-b', name: 'n' * 257),
+        );
+
+        expect(testClient.contextUpdates, [
+          _userA,
+          const ConfigDirectorContext(),
+        ]);
+        expect(testClient.client.context, isNull);
+        expect(logger.errorMessages, [
+          contains('its name is longer than 256 characters'),
+        ]);
+      },
+    );
+
     test('S26 a held updateContext stays pending until completed', () async {
       final testClient = create(values: {'flag': true});
       final client = testClient.client;

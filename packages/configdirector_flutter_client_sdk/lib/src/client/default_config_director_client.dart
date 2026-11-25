@@ -40,6 +40,14 @@ const int _maxBackoffExponent = 9;
 
 enum _ConfigSetSource { none, cachedValues, livePayload }
 
+String _explanationOf(ContextSizeLimitReason reason) => switch (reason) {
+  ContextSizeLimitReason.identifierTooLong =>
+    'its id is longer than 256 characters',
+  ContextSizeLimitReason.nameTooLong =>
+    'its name is longer than 256 characters',
+  ContextSizeLimitReason.traitsTooLarge => 'its traits are over 64 KB of JSON',
+};
+
 final class _ConfigWatcher {
   _ConfigWatcher({required this.reevaluate, required this.close});
 
@@ -439,7 +447,15 @@ final class DefaultConfigDirectorClient implements ConfigDirectorClient {
           'A context kind has 1 to 64 characters: lowercase ASCII letters, '
           "digits, '-' and '_'.",
         );
-        _telemetry.recordInvalidContextSubmission(contextKindSample);
+        _telemetry.recordInvalidContextKind(contextKindSample);
+        return null;
+      case ContextIgnoredOverASizeLimit(:final reason):
+        _logger.error(
+          '[ConfigDirectorClient] Ignored the context supplied for '
+          '${action.description} because ${_explanationOf(reason)}; '
+          'continuing as if no context was supplied.',
+        );
+        _telemetry.recordContextOverSizeLimit(reason);
         return null;
     }
   }

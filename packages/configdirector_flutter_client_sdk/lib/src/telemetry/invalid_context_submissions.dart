@@ -6,9 +6,10 @@ const int _contextKindSampleLimit = 20;
 final class InvalidContextSubmissions {
   final Map<String, int> _countsByContextKindSample = {};
   int _countBeyondContextKindSampleLimit = 0;
+  final Map<ContextSizeLimitReason, int> _countsBySizeLimitReason = {};
   DateTime? _startTime;
 
-  void record(String contextKindSample) {
+  void recordInvalidContextKind(String contextKindSample) {
     _startTime ??= DateTime.now();
 
     final isAlreadySampled = _countsByContextKindSample.containsKey(
@@ -25,6 +26,16 @@ final class InvalidContextSubmissions {
     } else {
       _countBeyondContextKindSampleLimit += 1;
     }
+  }
+
+  void recordOverSizeLimit(ContextSizeLimitReason reason) {
+    _startTime ??= DateTime.now();
+
+    _countsBySizeLimitReason.update(
+      reason,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
   }
 
   List<AggregatedEvent<InvalidContextSubmission>> takeAggregated() {
@@ -46,6 +57,14 @@ final class InvalidContextSubmissions {
           count: _countBeyondContextKindSampleLimit,
           event: const InvalidContextSubmission.beyondContextKindSampleLimit(),
         ),
+      for (final MapEntry(key: reason, value: count)
+          in _countsBySizeLimitReason.entries)
+        AggregatedEvent(
+          startTime: startTime,
+          endTime: endTime,
+          count: count,
+          event: InvalidContextSubmission.overSizeLimit(reason),
+        ),
     ];
 
     clear();
@@ -55,6 +74,7 @@ final class InvalidContextSubmissions {
   void clear() {
     _countsByContextKindSample.clear();
     _countBeyondContextKindSampleLimit = 0;
+    _countsBySizeLimitReason.clear();
     _startTime = null;
   }
 }

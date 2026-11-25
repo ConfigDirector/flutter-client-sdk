@@ -10,7 +10,9 @@ abstract interface class TelemetryClient {
   /// Records that a config was evaluated.
   void evaluatedConfig(EvaluatedConfigEvent event);
 
-  void recordInvalidContextSubmission(String contextKindSample);
+  void recordInvalidContextKind(String contextKindSample);
+
+  void recordContextOverSizeLimit(ContextSizeLimitReason reason);
 
   void trackedEvent(
     TrackedEventAdmission admission,

@@ -1,4 +1,5 @@
 import 'package:configdirector_flutter_client_sdk/src/context_admission.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +15,17 @@ Matcher ignoresWithContextKindSample(String contextKindSample) =>
       'contextKindSample',
       contextKindSample,
     );
+
+Matcher ignoresOverSizeLimit(ContextSizeLimitReason reason) =>
+    isA<ContextIgnoredOverASizeLimit>().having(
+      (admission) => admission.reason,
+      'reason',
+      reason,
+    );
+
+Map<String, Object?> traitsOfJsonBytes(int jsonBytes) => {
+  'note': 'x' * (jsonBytes - '{"note":""}'.length),
+};
 
 void main() {
   test('admits a context without a context kind', () {
@@ -79,5 +91,134 @@ void main() {
     final context = ConfigDirectorContext(id: '42', kind: '😀' * 129);
 
     expect(admissionOf(context), ignoresWithContextKindSample('😀' * 128));
+  });
+
+  test('ignores a context whose id has 257 characters, for '
+      'identifier-too-long', () {
+    final context = ConfigDirectorContext(id: 'i' * 257);
+
+    expect(
+      admissionOf(context),
+      ignoresOverSizeLimit(ContextSizeLimitReason.identifierTooLong),
+    );
+  });
+
+  test('admits a context whose id has 256 characters', () {
+    final context = ConfigDirectorContext(id: 'i' * 256);
+
+    expect(admissionOf(context), admits(context));
+  });
+
+  test('admits a context whose id has 200 emoji, since each emoji counts as '
+      'one character', () {
+    final context = ConfigDirectorContext(id: '😀' * 200);
+
+    expect(admissionOf(context), admits(context));
+  });
+
+  test(
+    'ignores a context whose name has 257 characters, for name-too-long',
+    () {
+      final context = ConfigDirectorContext(id: '42', name: 'n' * 257);
+
+      expect(
+        admissionOf(context),
+        ignoresOverSizeLimit(ContextSizeLimitReason.nameTooLong),
+      );
+    },
+  );
+
+  test('admits a context whose name has 256 characters', () {
+    final context = ConfigDirectorContext(id: '42', name: 'n' * 256);
+
+    expect(admissionOf(context), admits(context));
+  });
+
+  test('ignores a context whose traits take 65,537 bytes of JSON, for '
+      'traits-too-large', () {
+    final context = ConfigDirectorContext(
+      id: '42',
+      traits: traitsOfJsonBytes(65537),
+    );
+
+    expect(
+      admissionOf(context),
+      ignoresOverSizeLimit(ContextSizeLimitReason.traitsTooLarge),
+    );
+  });
+
+  test('admits a context whose traits take exactly 65,536 bytes of JSON', () {
+    final context = ConfigDirectorContext(
+      id: '42',
+      traits: traitsOfJsonBytes(65536),
+    );
+
+    expect(admissionOf(context), admits(context));
+  });
+
+  test('ignores a context whose traits have fewer than 65,536 characters but '
+      'take more than 65,536 bytes of JSON', () {
+    final context = ConfigDirectorContext(
+      id: '42',
+      traits: {'note': 'é' * 40000},
+    );
+
+    expect(
+      admissionOf(context),
+      ignoresOverSizeLimit(ContextSizeLimitReason.traitsTooLarge),
+    );
+  });
+
+  test('admits a context whose traits cannot be written as JSON', () {
+    final context = ConfigDirectorContext(
+      id: '42',
+      traits: {'signedUpAt': DateTime.utc(2026, 11, 25)},
+    );
+
+    expect(admissionOf(context), admits(context));
+  });
+
+  test('ignores a context over the id and the traits limits for '
+      'identifier-too-long', () {
+    final context = ConfigDirectorContext(
+      id: 'i' * 257,
+      traits: traitsOfJsonBytes(65537),
+    );
+
+    expect(
+      admissionOf(context),
+      ignoresOverSizeLimit(ContextSizeLimitReason.identifierTooLong),
+    );
+  });
+
+  test('ignores a context over the id and the name limits for '
+      'identifier-too-long', () {
+    final context = ConfigDirectorContext(id: 'i' * 257, name: 'n' * 257);
+
+    expect(
+      admissionOf(context),
+      ignoresOverSizeLimit(ContextSizeLimitReason.identifierTooLong),
+    );
+  });
+
+  test('ignores a context over the name and the traits limits for '
+      'name-too-long', () {
+    final context = ConfigDirectorContext(
+      id: '42',
+      name: 'n' * 257,
+      traits: traitsOfJsonBytes(65537),
+    );
+
+    expect(
+      admissionOf(context),
+      ignoresOverSizeLimit(ContextSizeLimitReason.nameTooLong),
+    );
+  });
+
+  test('ignores a context with an invalid context kind and an id over the '
+      'limit for its context kind', () {
+    final context = ConfigDirectorContext(id: 'i' * 257, kind: 'Device');
+
+    expect(admissionOf(context), ignoresWithContextKindSample('Device'));
   });
 }

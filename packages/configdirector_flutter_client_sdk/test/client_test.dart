@@ -7,6 +7,7 @@ import 'package:configdirector_flutter_client_sdk/src/constants.dart'
     as constants;
 import 'package:configdirector_flutter_client_sdk/src/platform/app_info.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_client.dart';
+import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_events.dart';
 import 'package:configdirector_flutter_client_sdk/src/telemetry/telemetry_value.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/polling_transport.dart';
 import 'package:configdirector_flutter_client_sdk/src/transport/transport.dart';
@@ -2035,7 +2036,7 @@ void main() {
         await pumpEventQueue();
 
         expect(givenContexts, [<String, Object?>{}, <String, Object?>{}]);
-        expect(telemetry.invalidContextSubmissions, ['Device']);
+        expect(telemetry.invalidContextKindSamples, ['Device']);
         expect(logger.errorMessages, hasLength(1));
       });
     });
@@ -2093,7 +2094,7 @@ void main() {
           async.elapse(const Duration(seconds: 60));
 
           expect(givenContexts, [<String, Object?>{}, <String, Object?>{}]);
-          expect(telemetry.invalidContextSubmissions, ['Device']);
+          expect(telemetry.invalidContextKindSamples, ['Device']);
           expect(logger.errorMessages, hasLength(1));
         });
       });
@@ -2169,7 +2170,7 @@ void main() {
           const ConfigDirectorContext(id: 'tenant-7', kind: 'Tenant'),
         );
 
-        expect(telemetry.invalidContextSubmissions, ['Device', 'Tenant']);
+        expect(telemetry.invalidContextKindSamples, ['Device', 'Tenant']);
       },
     );
 
@@ -2182,7 +2183,7 @@ void main() {
           ConfigDirectorContext(id: 'device-42', kind: 'D' * 200),
         );
 
-        expect(telemetry.invalidContextSubmissions, ['D' * 128]);
+        expect(telemetry.invalidContextKindSamples, ['D' * 128]);
       },
     );
 
@@ -2194,7 +2195,7 @@ void main() {
         ..getValue('dark-mode', false)
         ..evaluate('dark-mode', false);
 
-      expect(telemetry.invalidContextSubmissions, ['Device']);
+      expect(telemetry.invalidContextKindSamples, ['Device']);
     });
 
     test('counts nothing again when the network resumes', () async {
@@ -2204,13 +2205,150 @@ void main() {
       client.pauseNetwork();
       await client.resumeNetwork();
 
-      expect(telemetry.invalidContextSubmissions, ['Device']);
+      expect(telemetry.invalidContextKindSamples, ['Device']);
     });
 
     test('never hands the ignored context to telemetry', () async {
       final client = autoDispose(createClient());
 
       await client.initialize(contextWithAnInvalidContextKind);
+
+      expect(telemetry.contextUpdates, [null]);
+    });
+  });
+
+  group('context size limits', () {
+    Future<DefaultConfigDirectorClient> clientInitializedWith(
+      ConfigDirectorContext context,
+    ) async {
+      final client = autoDispose(createClient());
+      final initialization = client.initialize(context);
+      transport.emitConfigSet(configSet(configs: const {}));
+      await initialization;
+      return client;
+    }
+
+    test('initialize with an id of 257 characters connects with an empty '
+        'context, logs the id limit and records identifier-too-long', () async {
+      final client = await clientInitializedWith(
+        ConfigDirectorContext(id: 'i' * 257),
+      );
+
+      expect(transport.connectCalls.map((call) => call.context), [
+        const ConfigDirectorContext(),
+      ]);
+      expect(client.isReady, isTrue);
+      expect(client.context, isNull);
+      expect(logger.errorMessages, [
+        '[ConfigDirectorClient] Ignored the context supplied for '
+            'initialization because its id is longer than 256 characters; '
+            'continuing as if no context was supplied.',
+      ]);
+      expect(telemetry.contextSizeLimitReasons, [
+        ContextSizeLimitReason.identifierTooLong,
+      ]);
+      expect(telemetry.invalidContextKindSamples, isEmpty);
+    });
+
+    test('initialize with a name of 257 characters connects with an empty '
+        'context, logs the name limit and records name-too-long', () async {
+      final client = await clientInitializedWith(
+        ConfigDirectorContext(id: '42', name: 'n' * 257),
+      );
+
+      expect(transport.connectCalls.map((call) => call.context), [
+        const ConfigDirectorContext(),
+      ]);
+      expect(client.context, isNull);
+      expect(logger.errorMessages, [
+        '[ConfigDirectorClient] Ignored the context supplied for '
+            'initialization because its name is longer than 256 characters; '
+            'continuing as if no context was supplied.',
+      ]);
+      expect(telemetry.contextSizeLimitReasons, [
+        ContextSizeLimitReason.nameTooLong,
+      ]);
+      expect(telemetry.invalidContextKindSamples, isEmpty);
+    });
+
+    test(
+      'initialize with traits of 65,537 bytes of JSON connects with an '
+      'empty context, logs the traits limit and records traits-too-large',
+      () async {
+        final client = await clientInitializedWith(
+          ConfigDirectorContext(
+            id: '42',
+            traits: {'note': 'x' * (65537 - '{"note":""}'.length)},
+          ),
+        );
+
+        expect(transport.connectCalls.map((call) => call.context), [
+          const ConfigDirectorContext(),
+        ]);
+        expect(client.context, isNull);
+        expect(logger.errorMessages, [
+          '[ConfigDirectorClient] Ignored the context supplied for '
+              'initialization because its traits are over 64 KB of JSON; '
+              'continuing as if no context was supplied.',
+        ]);
+        expect(telemetry.contextSizeLimitReasons, [
+          ContextSizeLimitReason.traitsTooLarge,
+        ]);
+        expect(telemetry.invalidContextKindSamples, isEmpty);
+      },
+    );
+
+    test('initialize with a context over the id and the traits limits logs '
+        'once and records one submission, with identifier-too-long', () async {
+      await clientInitializedWith(
+        ConfigDirectorContext(
+          id: 'i' * 257,
+          traits: {'note': 'x' * (65537 - '{"note":""}'.length)},
+        ),
+      );
+
+      expect(logger.errorMessages, [
+        contains('because its id is longer than 256 characters;'),
+      ]);
+      expect(telemetry.contextSizeLimitReasons, [
+        ContextSizeLimitReason.identifierTooLong,
+      ]);
+    });
+
+    test('updateContext with a name over the limit stops using the previous '
+        'context and logs that the context update was ignored', () async {
+      const userContext = ConfigDirectorContext(id: 'user-123');
+      final client = await clientInitializedWith(userContext);
+      final contextUpdates = <ConfigDirectorContext?>[];
+      client.onContextUpdated.listen(
+        (event) => contextUpdates.add(event.context),
+      );
+
+      final update = client.updateContext(
+        ConfigDirectorContext(id: 'user-124', name: 'n' * 257),
+      );
+      transport.emitConfigSet(configSet(configs: const {}));
+      await update;
+      await pumpEventQueue();
+
+      expect(transport.connectCalls.map((call) => call.context), [
+        userContext,
+        const ConfigDirectorContext(),
+      ]);
+      expect(client.context, isNull);
+      expect(contextUpdates, [null]);
+      expect(logger.errorMessages, [
+        '[ConfigDirectorClient] Ignored the context supplied for '
+            'context update because its name is longer than 256 characters; '
+            'continuing as if no context was supplied.',
+      ]);
+      expect(telemetry.contextSizeLimitReasons, [
+        ContextSizeLimitReason.nameTooLong,
+      ]);
+    });
+
+    test('never hands the ignored context to telemetry', () async {
+      await clientInitializedWith(ConfigDirectorContext(id: 'i' * 257));
 
       expect(telemetry.contextUpdates, [null]);
     });

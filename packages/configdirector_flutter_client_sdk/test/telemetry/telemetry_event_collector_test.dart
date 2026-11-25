@@ -61,6 +61,13 @@ void main() {
       (entry.event.contextKindSample, entry.count),
   ];
 
+  List<Map<String, Object?>> reportedInvalidContextSubmissionsAsJson(
+    int index,
+  ) => [
+    for (final entry in reporter.requests[index].invalidContextSubmissions)
+      {'count': entry.count, 'event': entry.event.toJson()},
+  ];
+
   test('reports what it collected once the first flush comes due', () {
     fakeAsync((async) {
       createCollector().evaluatedConfig(evaluation());
@@ -217,9 +224,9 @@ void main() {
         final collector = createCollector();
 
         collector
-          ..recordInvalidContextSubmission('Device')
-          ..recordInvalidContextSubmission('Tenant')
-          ..recordInvalidContextSubmission('Device');
+          ..recordInvalidContextKind('Device')
+          ..recordInvalidContextKind('Tenant')
+          ..recordInvalidContextKind('Device');
         async.elapse(_initialFlushDelay);
 
         expect(reportedInvalidContextSubmissions(0), [
@@ -238,9 +245,9 @@ void main() {
         final collector = createCollector();
 
         for (var number = 1; number <= 22; number++) {
-          collector.recordInvalidContextSubmission('kind-$number');
+          collector.recordInvalidContextKind('kind-$number');
         }
-        collector.recordInvalidContextSubmission('kind-1');
+        collector.recordInvalidContextKind('kind-1');
         async.elapse(_initialFlushDelay);
 
         final reported = reportedInvalidContextSubmissions(0);
@@ -257,13 +264,89 @@ void main() {
       final collector = createCollector();
 
       for (var number = 1; number <= 20; number++) {
-        collector.recordInvalidContextSubmission('kind-$number');
+        collector.recordInvalidContextKind('kind-$number');
       }
       async.elapse(_initialFlushDelay);
-      collector.recordInvalidContextSubmission('kind-21');
+      collector.recordInvalidContextKind('kind-21');
       async.elapse(_flushInterval);
 
       expect(reportedInvalidContextSubmissions(1), [('kind-21', 1)]);
+    });
+  });
+
+  test('reports contexts over a size limit counted by reason, without a '
+      'context kind sample', () {
+    fakeAsync((async) {
+      final collector = createCollector();
+
+      collector
+        ..recordContextOverSizeLimit(ContextSizeLimitReason.identifierTooLong)
+        ..recordContextOverSizeLimit(ContextSizeLimitReason.traitsTooLarge)
+        ..recordContextOverSizeLimit(ContextSizeLimitReason.identifierTooLong);
+      async.elapse(_initialFlushDelay);
+
+      expect(reportedInvalidContextSubmissionsAsJson(0), [
+        {
+          'count': 2,
+          'event': {'reason': 'identifier-too-long'},
+        },
+        {
+          'count': 1,
+          'event': {'reason': 'traits-too-large'},
+        },
+      ]);
+    });
+  });
+
+  test('counts contexts over a size limit afresh after each flush', () {
+    fakeAsync((async) {
+      final collector = createCollector()
+        ..recordContextOverSizeLimit(ContextSizeLimitReason.nameTooLong);
+      async.elapse(_initialFlushDelay);
+
+      collector.recordContextOverSizeLimit(
+        ContextSizeLimitReason.traitsTooLarge,
+      );
+      async.elapse(_flushInterval);
+
+      expect(reportedInvalidContextSubmissionsAsJson(1), [
+        {
+          'count': 1,
+          'event': {'reason': 'traits-too-large'},
+        },
+      ]);
+    });
+  });
+
+  test('reports contexts over a size limit as starting when the first one was '
+      'recorded', () async {
+    final collector = createCollector();
+    addTearDown(collector.close);
+
+    collector.recordContextOverSizeLimit(ContextSizeLimitReason.nameTooLong);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    await collector.flush();
+
+    final entry = reporter.requests.single.invalidContextSubmissions.single;
+    expect(
+      entry.endTime.difference(entry.startTime),
+      greaterThanOrEqualTo(const Duration(milliseconds: 20)),
+    );
+  });
+
+  test('collects no contexts over a size limit after a fatal error', () {
+    fakeAsync((async) {
+      final collector = createCollector()..evaluatedConfig(evaluation());
+      reporter.response = const ReporterResponse.failed(fatalError: true);
+      async.elapse(_initialFlushDelay);
+
+      collector.recordContextOverSizeLimit(
+        ContextSizeLimitReason.identifierTooLong,
+      );
+      unawaited(collector.flush());
+      async.flushMicrotasks();
+
+      expect(reporter.requests, hasLength(1));
     });
   });
 
@@ -273,7 +356,7 @@ void main() {
       reporter.response = const ReporterResponse.failed(fatalError: true);
       async.elapse(_initialFlushDelay);
 
-      collector.recordInvalidContextSubmission('Device');
+      collector.recordInvalidContextKind('Device');
       unawaited(collector.flush());
       async.flushMicrotasks();
 
@@ -291,7 +374,7 @@ void main() {
       unawaited(collector.flush());
       async.flushMicrotasks();
 
-      collector.recordInvalidContextSubmission('Device');
+      collector.recordInvalidContextKind('Device');
       reporter.gate!.complete();
       async.flushMicrotasks();
       unawaited(collector.flush());
@@ -331,8 +414,7 @@ void main() {
 
   test('reports the invalid context submissions left when it closes', () {
     fakeAsync((async) {
-      final collector = createCollector()
-        ..recordInvalidContextSubmission('Device');
+      final collector = createCollector()..recordInvalidContextKind('Device');
 
       unawaited(collector.close());
       async.flushMicrotasks();

@@ -60,11 +60,19 @@ final class TelemetryEventCollector implements TelemetryClient {
   }
 
   @override
-  void recordInvalidContextSubmission(String contextKindSample) {
+  void recordInvalidContextKind(String contextKindSample) {
     if (!_collecting) {
       return;
     }
-    _invalidContextSubmissions.record(contextKindSample);
+    _invalidContextSubmissions.recordInvalidContextKind(contextKindSample);
+  }
+
+  @override
+  void recordContextOverSizeLimit(ContextSizeLimitReason reason) {
+    if (!_collecting) {
+      return;
+    }
+    _invalidContextSubmissions.recordOverSizeLimit(reason);
   }
 
   @override

@@ -45,8 +45,10 @@ import 'resolution.dart';
 ///
 /// Any other attribute is ignored. Put the values targeting rules depend on
 /// inside `traits`; a `kind` inside `traits` is an ordinary trait. Leaving
-/// `kind` out means `user`, and a context with an invalid `kind` is ignored as
-/// a whole: the SDK logs an error and flags resolve as if no context was set.
+/// `kind` out means `user`. A context with an invalid `kind`, or one over the
+/// size limits (a `targetingKey` or `id`, or a `name`, longer than 256
+/// characters, or `traits` over 64 KB once written as JSON), is ignored as a
+/// whole: the SDK logs an error and flags resolve as if no context was set.
 /// The context handed to an individual resolution is ignored as well: flags
 /// are evaluated against the context most recently set.
 ///

@@ -79,6 +79,28 @@ void main() {
     },
   );
 
+  test(
+    'drops an initial context with traits over 64 KB of JSON and becomes ready',
+    () async {
+      final testClient = createTestClient(
+        logger: ConsoleLogger(level: ConfigDirectorLogLevel.off),
+      );
+      await api.setEvaluationContextAndWait(
+        EvaluationContext(
+          targetingKey: 'user-123',
+          attributes: {
+            'traits': {'note': 'x' * 65537},
+          },
+        ),
+      );
+
+      await api.setProviderAndWait(providerForClient(testClient.client));
+
+      expect(api.getClient().providerStatus, ProviderStatus.ready);
+      expect(testClient.contextUpdates, [const ConfigDirectorContext()]);
+    },
+  );
+
   test('evaluates every flag type through an OpenFeature client', () async {
     await api.setProviderAndWait(provider);
     final client = api.getClient();
