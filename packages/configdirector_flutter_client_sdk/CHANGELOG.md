@@ -5,6 +5,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-25
+
 ### Changed
 
 - `initialize` and `updateContext` now ignore a context over the context size limits before sending
