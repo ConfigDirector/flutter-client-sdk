@@ -5,8 +5,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0-beta.9] - 2026-11-25
+
 ### Changed
 
+- Requires version 1.9.0 of `configdirector_flutter_client_sdk`, which checks the context size
+  limits described below.
 - An evaluation context over the context size limits is now ignored before it is sent: a
   `targetingKey` (or `id`) or a `name` longer than 256 characters, or `traits` over 64 KB once
   written as JSON (65,536 bytes in UTF-8). Initialization and context changes still succeed, flags
